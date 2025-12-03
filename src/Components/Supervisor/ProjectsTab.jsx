@@ -28,12 +28,25 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
     }
   };
 
+  const handleDecrementInvoice = async (project) => {
+    if (project.invoice_count > 0) {
+      const { error } = await supabase
+        .from('projects')
+        .update({ invoice_count: project.invoice_count - 1 })
+        .eq('id', project.id);
+      
+      if (!error) {
+        onRefresh();
+      }
+    }
+  };
+
   // Filter projects
   const filteredProjects = projects.filter(project => {
     const matchesStatus = filterStatus === 'all' || project.status === filterStatus;
     
     const matchesSearch = searchQuery === '' || 
-      project.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       project.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       project.contact_person?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       project.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,7 +139,7 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
             <thead>
               <tr>
                 <th>#</th>
-                <th>Project Name</th>
+                <th>Address (Project)</th>
                 <th>Type</th>
                 <th>Company</th>
                 <th>Contact</th>
@@ -143,11 +156,11 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
                 return (
                   <tr key={project.id}>
                     <td className="fw-bold">{project.serial_number}</td>
-                    <td>{project.name}</td>
+                    <td>{project.address}</td>
                     <td>
                       <span className="badge bg-secondary">{project.type}</span>
                     </td>
-                    <td>{project.company_name}</td>
+                    <td>{project.company_name || '-'}</td>
                     <td>
                       {project.contact_person}<br />
                       <small className="text-muted">{project.email}</small>
@@ -158,13 +171,30 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
                       </span>
                     </td>
                     <td>
-                      <button
-                        onClick={() => handleIncrementInvoice(project)}
-                        className="btn btn-sm btn-outline-secondary"
-                        title="Increment invoice count"
-                      >
-                        {project.invoice_count}
-                      </button>
+                      <div className="btn-group" role="group">
+                        <button
+                          onClick={() => handleDecrementInvoice(project)}
+                          className="btn btn-sm btn-outline-secondary"
+                          title="Decrease invoice count"
+                          disabled={project.invoice_count <= 0}
+                        >
+                          −
+                        </button>
+                        <button
+                          className="btn btn-sm btn-outline-secondary"
+                          disabled
+                          style={{ minWidth: '40px' }}
+                        >
+                          {project.invoice_count}
+                        </button>
+                        <button
+                          onClick={() => handleIncrementInvoice(project)}
+                          className="btn btn-sm btn-outline-secondary"
+                          title="Increase invoice count"
+                        >
+                          +
+                        </button>
+                      </div>
                     </td>
                     <td>{projectLead?.full_name || '-'}</td>
                     <td>

@@ -6,14 +6,13 @@ import InputField from '../Common/InputField';
 
 const ProjectForm = ({ project, employees, onClose, onSave }) => {
   const [formData, setFormData] = useState({
-    name: project?.name || '',
+    address: project?.address || '',
     type: project?.type || 'DGN',
     company_name: project?.company_name || '',
     contact_person: project?.contact_person || '',
     email: project?.email || '',
     phone: project?.phone || '',
     job_description: project?.job_description || '',
-    address: project?.address || '',
     status: project?.status || 'in progress',
     quotation_amount: project?.quotation_amount || '',
     quotation_date: project?.quotation_date || '',
@@ -21,7 +20,8 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
     invoice_date: project?.invoice_date || '',
     payment_amount: project?.payment_amount || '',
     payment_date: project?.payment_date || '',
-    project_lead_id: project?.project_lead_id || ''
+    project_lead_id: project?.project_lead_id || '',
+    notes: project?.notes || ''
   });
   
   const [error, setError] = useState('');
@@ -37,8 +37,8 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
     setLoading(true);
 
     // Validate required fields
-    if (!formData.name || !formData.type || !formData.company_name) {
-      setError('Project name, type, and company name are required');
+    if (!formData.address || !formData.type || !formData.contact_person) {
+      setError('Address, type, and contact person are required');
       setLoading(false);
       return;
     }
@@ -49,6 +49,9 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
         quotation_amount: formData.quotation_amount ? parseFloat(formData.quotation_amount) : null,
         invoice_amount: formData.invoice_amount ? parseFloat(formData.invoice_amount) : null,
         payment_amount: formData.payment_amount ? parseFloat(formData.payment_amount) : null,
+        quotation_date: formData.quotation_date || null,
+        invoice_date: formData.invoice_date || null,
+        payment_date: formData.payment_date || null,
         project_lead_id: formData.project_lead_id || null
       };
 
@@ -86,12 +89,53 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
             <h6 className="text-muted mb-3">Basic Information</h6>
             
             <InputField
-              label="Project Name"
-              id="name"
-              value={formData.name}
-              onChange={(val) => handleChange('name', val)}
+              label="Contact Person"
+              id="contact_person"
+              value={formData.contact_person}
+              onChange={(val) => handleChange('contact_person', val)}
               required
             />
+
+            <InputField
+              label="Company Name"
+              id="company_name"
+              value={formData.company_name}
+              onChange={(val) => handleChange('company_name', val)}
+            />
+
+            <InputField
+              label="Email"
+              id="email"
+              type="email"
+              value={formData.email}
+              onChange={(val) => handleChange('email', val)}
+            />
+
+            <InputField
+              label="Phone"
+              id="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(val) => handleChange('phone', val)}
+            />
+
+            <div className="mb-3">
+              <label className="form-label">
+                Address (Project Title) <span className="text-danger">*</span>
+              </label>
+              <textarea
+                className="form-control"
+                rows={2}
+                value={formData.address}
+                onChange={(e) => handleChange('address', e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Project Details */}
+          <div className="col-md-6">
+            <h6 className="text-muted mb-3">Project Details</h6>
 
             <div className="mb-3">
               <label className="form-label">
@@ -158,50 +202,14 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
                 onChange={(e) => handleChange('job_description', e.target.value)}
               />
             </div>
-          </div>
-
-          {/* Contact & Financial Information */}
-          <div className="col-md-6">
-            <h6 className="text-muted mb-3">Contact Information</h6>
-            
-            <InputField
-              label="Company Name"
-              id="company_name"
-              value={formData.company_name}
-              onChange={(val) => handleChange('company_name', val)}
-              required
-            />
-
-            <InputField
-              label="Contact Person"
-              id="contact_person"
-              value={formData.contact_person}
-              onChange={(val) => handleChange('contact_person', val)}
-            />
-
-            <InputField
-              label="Email"
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(val) => handleChange('email', val)}
-            />
-
-            <InputField
-              label="Phone"
-              id="phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(val) => handleChange('phone', val)}
-            />
 
             <div className="mb-3">
-              <label className="form-label">Address</label>
+              <label className="form-label">Notes</label>
               <textarea
                 className="form-control"
-                rows={2}
-                value={formData.address}
-                onChange={(e) => handleChange('address', e.target.value)}
+                rows={3}
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
               />
             </div>
           </div>
