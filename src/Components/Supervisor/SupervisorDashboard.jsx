@@ -67,7 +67,7 @@ const SupervisorDashboard = ({ profile }) => {
     {
       id: 'employees',
       label: 'Employees',
-      content: <EmployeesTab employees={employees} onRefresh={loadEmployees} />
+      content: <EmployeesTab employees={employees} currentUser={profile} onRefresh={loadEmployees} />
     },
     {
       id: 'projects',

@@ -4,9 +4,9 @@ import Card from '../Common/Card';
 import Button from '../Common/Button';
 import InputField from '../Common/InputField';
 
-const ProjectForm = ({ project, employees, onClose, onSave }) => {
+const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) => {
   const [formData, setFormData] = useState({
-    serial_number: project?.serial_number || '',
+    serial_number: project?.serial_number || nextSerialNumber || '',
     address: project?.address || '',
     type: project?.type || 'DGN',
     company_name: project?.company_name || '',
@@ -120,6 +120,7 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
               type="number"
               value={formData.serial_number}
               onChange={(val) => handleChange('serial_number', val)}
+              required
             />
 
             <div className="mb-3">
@@ -133,6 +134,7 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
                 onChange={(e) => handleChange('address', e.target.value)}
                 required
               />
+            </div>
             
             <InputField
               label="Contact Person"
@@ -164,9 +166,6 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
               value={formData.phone}
               onChange={(val) => handleChange('phone', val)}
             />
-
-            
-            </div>
           </div>
 
           {/* Project Details */}
@@ -187,8 +186,8 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
                 <option value="DET">DET - Detailing</option>
                 <option value="FAB">FAB - Fabrication</option>
                 <option value="CON">CON - Construction</option>
-                <option value="FNE">FNE - Finishing</option>
-                <option value="DEF">DEF - Deficiency</option>
+                <option value="FNE">FNE - Fabrication and Erection</option>
+                <option value="DEF">DEF - Design, Erection, and Fabrication</option>
               </select>
             </div>
 

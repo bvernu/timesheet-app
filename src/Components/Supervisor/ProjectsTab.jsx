@@ -12,6 +12,13 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Get next serial number
+  const getNextSerialNumber = () => {
+    if (projects.length === 0) return 1288;
+    const maxSerial = Math.max(...projects.map(p => p.serial_number || 0));
+    return maxSerial + 1;
+  };
+
   const handleDeleteProject = async (id) => {
     if (confirm('Are you sure you want to delete this project?')) {
       await supabase.from('projects').delete().eq('id', id);

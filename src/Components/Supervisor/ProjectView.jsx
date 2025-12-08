@@ -70,8 +70,8 @@ const ProjectView = ({ project, onClose, onEdit, employees }) => {
       <Card>
         <div className="d-flex justify-content-between align-items-start mb-4">
           <div>
-            <h3 className="mb-2">Project #{project.serial_number}</h3>
-            <h5 className="text-muted">{project.address}</h5>
+            <h3 className="mb-2">{project.address}</h3>
+            <h5 className="text-muted">Project #{project.serial_number}</h5>
           </div>
           <div>
             <Button onClick={onEdit} variant="primary" className="me-2">

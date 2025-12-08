@@ -3,12 +3,15 @@ import { supabase } from './supabaseClient';
 import AuthPage from './Components/Auth/AuthPage';
 import EmployeeDashboard from './Components/Employee/EmployeeDashboard';
 import SupervisorDashboard from './Components/Supervisor/SupervisorDashboard';
+import ChangePasswordModal from './ChangePasswordModal';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     // Check active sessions
@@ -91,10 +94,16 @@ function App() {
               className="me-2"
             />
           </span>
-          <div className="d-flex align-items-center">
+          <div className="d-flex align-items-center gap-2">
             <span className="me-3" style={{ color: '#080808', fontWeight: '500' }}>
               {profile.full_name} ({profile.role})
             </span>
+            <button 
+              onClick={() => setShowChangePassword(true)}
+              className="btn btn-sm btn-outline-secondary"
+            >
+              Change Password
+            </button>
             <button 
               onClick={handleSignOut}
               className="btn btn-sm"
@@ -109,6 +118,10 @@ function App() {
           </div>
         </div>
       </nav>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
 
       <div className="container-fluid py-4">
         {profile.role === 'supervisor' ? (

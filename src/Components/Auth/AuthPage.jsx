@@ -6,6 +6,7 @@ import Button from '../Common/Button';
 
 const AuthPage = () => {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -46,6 +47,26 @@ const AuthPage = () => {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin
+      });
+      if (error) throw error;
+      setMessage('Password reset email sent! Check your inbox.');
+      setTimeout(() => setShowForgotPassword(false), 3000);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div>
       <nav className="navbar navbar-expand-lg navbar-light" style={{ backgroundColor: '#E8E8E8', borderBottom: '3px solid #F18F20' }}>
@@ -66,9 +87,9 @@ const AuthPage = () => {
 
       <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
         <div className="w-100" style={{ maxWidth: '400px' }}>
-          <Card title={isSignUp ? 'Sign Up' : 'Sign In'}>
-            <form onSubmit={handleAuth}>
-              {isSignUp && (
+          <Card title={showForgotPassword ? 'Reset Password' : (isSignUp ? 'Sign Up' : 'Sign In')}>
+            <form onSubmit={showForgotPassword ? handleForgotPassword : handleAuth}>
+              {!showForgotPassword && isSignUp && (
                 <InputField
                   label="Full Name"
                   id="fullName"
@@ -87,14 +108,16 @@ const AuthPage = () => {
                 required
               />
               
-              <InputField
-                label="Password"
-                id="password"
-                type="password"
-                value={password}
-                onChange={setPassword}
-                required
-              />
+              {!showForgotPassword && (
+                <InputField
+                  label="Password"
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={setPassword}
+                  required
+                />
+              )}
 
               {error && (
                 <div className="alert alert-danger" role="alert">
@@ -110,18 +133,38 @@ const AuthPage = () => {
 
               <div className="d-grid gap-2">
                 <Button type="submit" variant="primary">
-                  {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
+                  {loading ? 'Loading...' : showForgotPassword ? 'Send Reset Email' : (isSignUp ? 'Sign Up' : 'Sign In')}
                 </Button>
               </div>
             </form>
 
             <div className="text-center mt-3">
-              <button
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="btn btn-link"
-              >
-                {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-              </button>
+              {!showForgotPassword && !isSignUp && (
+                <button
+                  onClick={() => setShowForgotPassword(true)}
+                  className="btn btn-link btn-sm"
+                >
+                  Forgot Password?
+                </button>
+              )}
+              
+              {showForgotPassword && (
+                <button
+                  onClick={() => setShowForgotPassword(false)}
+                  className="btn btn-link"
+                >
+                  Back to Sign In
+                </button>
+              )}
+              
+              {!showForgotPassword && (
+                <button
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="btn btn-link"
+                >
+                  {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                </button>
+              )}
             </div>
           </Card>
         </div>
