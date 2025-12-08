@@ -114,15 +114,25 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
           <div className="col-md-6">
             <h6 className="text-muted mb-3">Basic Information</h6>
             
-            {project && (
-              <InputField
-                label="Serial Number"
-                id="serial_number"
-                type="number"
-                value={formData.serial_number}
-                onChange={(val) => handleChange('serial_number', val)}
+            <InputField
+              label="Serial Number"
+              id="serial_number"
+              type="number"
+              value={formData.serial_number}
+              onChange={(val) => handleChange('serial_number', val)}
+            />
+
+            <div className="mb-3">
+              <label className="form-label">
+                Address (Project Title) <span className="text-danger">*</span>
+              </label>
+              <textarea
+                className="form-control"
+                rows={2}
+                value={formData.address}
+                onChange={(e) => handleChange('address', e.target.value)}
+                required
               />
-            )}
             
             <InputField
               label="Contact Person"
@@ -155,17 +165,7 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
               onChange={(val) => handleChange('phone', val)}
             />
 
-            <div className="mb-3">
-              <label className="form-label">
-                Address (Project Title) <span className="text-danger">*</span>
-              </label>
-              <textarea
-                className="form-control"
-                rows={2}
-                value={formData.address}
-                onChange={(e) => handleChange('address', e.target.value)}
-                required
-              />
+            
             </div>
           </div>
 
