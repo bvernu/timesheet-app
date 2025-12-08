@@ -24,7 +24,7 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
     setLoading(true);
 
     try {
-      // Use the invite user method instead of admin.createUser
+      // Use the invite user method - the trigger will create the profile automatically
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -38,30 +38,15 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
 
       if (authError) throw authError;
 
-      // The profile will be created automatically by the trigger
-      // But we can ensure it exists with the correct data
-      if (authData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: authData.user.id,
-            email: formData.email,
-            full_name: formData.full_name,
-            role: 'employee'
-          }, {
-            onConflict: 'id'
-          });
-
-        if (profileError) throw profileError;
-      }
-
       setSuccess(`Employee account created! An email has been sent to ${formData.email} to verify their account. Temporary password: ${formData.password}`);
       setFormData({ email: '', full_name: '', password: '' });
       setShowAddEmployee(false);
+      
+      // Refresh after a delay to allow the trigger to create the profile
       setTimeout(() => {
         setSuccess('');
         onRefresh();
-      }, 5000);
+      }, 2000);
     } catch (err) {
       setError(err.message || 'Failed to create employee');
     } finally {
