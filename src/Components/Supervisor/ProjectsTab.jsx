@@ -15,9 +15,11 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
   // Get next serial number
   const getNextSerialNumber = () => {
     if (projects.length === 0) return 1288;
-    const maxSerial = Math.max(...projects.map(p => p.serial_number || 0));
+    const maxSerial = Math.max(...projects.map(p => parseInt(p.serial_number) || 0));
     return maxSerial + 1;
   };
+
+  const nextSerial = getNextSerialNumber();
 
   const handleDeleteProject = async (id) => {
     if (confirm('Are you sure you want to delete this project?')) {
@@ -141,6 +143,7 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
                 <ProjectForm
                   project={editingProject}
                   employees={employees}
+                  nextSerialNumber={showAddProject ? nextSerial : null}
                   onClose={() => {
                     setShowAddProject(false);
                     setEditingProject(null);

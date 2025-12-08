@@ -24,37 +24,44 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
     setLoading(true);
 
     try {
-      // Create user in Supabase Auth with temporary password
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      // Use the invite user method instead of admin.createUser
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: formData.full_name
+        options: {
+          data: {
+            full_name: formData.full_name
+          },
+          emailRedirectTo: window.location.origin
         }
       });
 
       if (authError) throw authError;
 
-      // Create profile (this should happen automatically via trigger, but we can ensure it)
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: authData.user.id,
-          email: formData.email,
-          full_name: formData.full_name,
-          role: 'employee'
-        });
+      // The profile will be created automatically by the trigger
+      // But we can ensure it exists with the correct data
+      if (authData.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authData.user.id,
+            email: formData.email,
+            full_name: formData.full_name,
+            role: 'employee'
+          }, {
+            onConflict: 'id'
+          });
 
-      if (profileError) throw profileError;
+        if (profileError) throw profileError;
+      }
 
-      setSuccess(`Employee created successfully! Temporary password: ${formData.password}`);
+      setSuccess(`Employee account created! An email has been sent to ${formData.email} to verify their account. Temporary password: ${formData.password}`);
       setFormData({ email: '', full_name: '', password: '' });
       setShowAddEmployee(false);
       setTimeout(() => {
         setSuccess('');
         onRefresh();
-      }, 3000);
+      }, 5000);
     } catch (err) {
       setError(err.message || 'Failed to create employee');
     } finally {
@@ -85,21 +92,34 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
   };
 
   const handleToggleRole = async (employeeId, currentRole) => {
+    setError('');
+    setSuccess('');
+    
     const newRole = currentRole === 'supervisor' ? 'employee' : 'supervisor';
     
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({ role: newRole })
-        .eq('id', employeeId);
+        .eq('id', employeeId)
+        .select();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Update error:', error);
+        throw error;
+      }
       
-      setSuccess('Role updated successfully!');
+      if (!data || data.length === 0) {
+        throw new Error('No rows updated. Check RLS policies.');
+      }
+      
+      setSuccess(`Role updated to ${newRole} successfully!`);
       setTimeout(() => setSuccess(''), 2000);
       onRefresh();
     } catch (err) {
-      setError(err.message || 'Failed to update role');
+      console.error('Toggle role error:', err);
+      setError(`Failed to update role: ${err.message}`);
+      setTimeout(() => setError(''), 5000);
     }
   };
 

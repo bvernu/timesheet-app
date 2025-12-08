@@ -5,6 +5,9 @@ import Button from '../Common/Button';
 import InputField from '../Common/InputField';
 
 const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) => {
+  // Debug: Log what serial number we're getting
+  console.log('ProjectForm props:', { project, nextSerialNumber });
+  
   const [formData, setFormData] = useState({
     serial_number: project?.serial_number || nextSerialNumber || '',
     address: project?.address || '',
