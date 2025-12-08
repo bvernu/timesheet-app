@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import Tabs from '../Common/Tabs';
+import EmployeeDashboard from '../Employee/EmployeeDashboard';
 import TimesheetsTab from './TimesheetsTab';
 import EmployeesTab from './EmployeesTab';
 import ProjectsTab from './ProjectsTab';
@@ -32,7 +33,7 @@ const SupervisorDashboard = ({ profile }) => {
     const { data } = await supabase
       .from('projects')
       .select('*')
-      .order('name');
+      .order('serial_number', { ascending: false });
     
     if (data) {
       setProjects(data);
@@ -59,6 +60,11 @@ const SupervisorDashboard = ({ profile }) => {
   };
 
   const tabs = [
+    {
+      id: 'my-timesheet',
+      label: 'My Timesheet',
+      content: <EmployeeDashboard profile={profile} />
+    },
     {
       id: 'timesheets',
       label: 'All Timesheets',

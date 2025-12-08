@@ -108,31 +108,6 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
     }
   };
 
-  const handleDeleteEmployee = async (employeeId, employeeEmail) => {
-    if (!confirm(`Are you sure you want to delete ${employeeEmail}? This will remove all their data.`)) {
-      return;
-    }
-
-    try {
-      // Delete from profiles (cascade will handle time_entries)
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', employeeId);
-
-      if (error) throw error;
-
-      // Note: Deleting from auth.users requires admin privileges
-      // This would need to be done via a Supabase Edge Function or backend
-      
-      setSuccess('Employee deleted successfully!');
-      setTimeout(() => setSuccess(''), 2000);
-      onRefresh();
-    } catch (err) {
-      setError(err.message || 'Failed to delete employee');
-    }
-  };
-
   const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
     let password = '';
@@ -252,7 +227,9 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
               </tr>
             </thead>
             <tbody>
-              {employees.map((employee) => (
+              {employees
+                .filter(emp => emp.role !== 'deleted')
+                .map((employee) => (
                 <tr key={employee.id}>
                   <td>{employee.full_name}</td>
                   <td>{employee.email}</td>
@@ -276,17 +253,9 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
                     </button>
                     <button
                       onClick={() => setShowResetPassword(employee)}
-                      className="btn btn-sm btn-outline-warning me-2"
+                      className="btn btn-sm btn-outline-warning"
                     >
                       Reset Password
-                    </button>
-                    <button
-                      onClick={() => handleDeleteEmployee(employee.id, employee.email)}
-                      className="btn btn-sm btn-outline-danger"
-                      disabled={employee.id === currentUser.id}
-                      title={employee.id === currentUser.id ? "Can't delete yourself" : "Delete employee"}
-                    >
-                      Delete
                     </button>
                   </td>
                 </tr>

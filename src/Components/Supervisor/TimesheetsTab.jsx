@@ -3,25 +3,72 @@ import Card from '../Common/Card';
 
 const TimesheetsTab = ({ timeEntries, employees }) => {
   const [selectedEmployee, setSelectedEmployee] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   
-  const filteredEntries = selectedEmployee === 'all' 
-    ? timeEntries 
-    : timeEntries.filter(entry => entry.employee_id === selectedEmployee);
+  const filteredEntries = timeEntries.filter(entry => {
+    const matchesEmployee = selectedEmployee === 'all' || entry.employee_id === selectedEmployee;
+    
+    // Date filtering
+    let matchesDate = true;
+    if (startDate || endDate) {
+      const entryDate = new Date(entry.clock_in);
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        matchesDate = matchesDate && entryDate >= start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && entryDate <= end;
+      }
+    }
+    
+    return matchesEmployee && matchesDate;
+  });
 
   return (
     <div>
       <div className="row mb-3">
-        <div className="col-md-6">
+        <div className="col-md-3">
           <h4>Employee Timesheets</h4>
         </div>
-        <div className="col-md-6 text-end">
-          <div className="d-inline-flex align-items-center">
-            <label className="me-2">View Employee:</label>
+        <div className="col-md-9 text-end">
+          <div className="d-inline-flex align-items-center gap-2">
+            <label className="me-1 small">From:</label>
+            <input
+              type="date"
+              className="form-control form-control-sm"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ width: '150px' }}
+            />
+            <label className="me-1 small">To:</label>
+            <input
+              type="date"
+              className="form-control form-control-sm"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ width: '150px' }}
+            />
+            {(startDate || endDate) && (
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                }}
+              >
+                Clear
+              </button>
+            )}
+            <label className="me-2">Employee:</label>
             <select
-              className="form-select"
+              className="form-select form-select-sm"
               value={selectedEmployee}
               onChange={(e) => setSelectedEmployee(e.target.value)}
-              style={{ width: 'auto' }}
+              style={{ width: '200px' }}
             >
               <option value="all">All Employees</option>
               {employees.map((employee) => (
