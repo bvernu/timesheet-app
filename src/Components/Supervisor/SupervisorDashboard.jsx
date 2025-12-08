@@ -4,8 +4,6 @@ import Tabs from '../Common/Tabs';
 import TimesheetsTab from './TimesheetsTab';
 import EmployeesTab from './EmployeesTab';
 import ProjectsTab from './ProjectsTab';
-import ProjectBreakdownTab from './ProjectBreakdownTab';
-import InsightsTab from './InsightsTab';
 
 const SupervisorDashboard = ({ profile }) => {
   const [activeTab, setActiveTab] = useState('timesheets');
@@ -75,16 +73,6 @@ const SupervisorDashboard = ({ profile }) => {
       id: 'projects',
       label: 'Projects',
       content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} />
-    },
-    {
-      id: 'insights',
-      label: 'Insights',
-      content: <InsightsTab timeEntries={timeEntries} employees={employees} projects={projects} />
-    },
-    {
-      id: 'project-breakdown',
-      label: 'Project Breakdown',
-      content: <ProjectBreakdownTab timeEntries={timeEntries} projects={projects} employees={employees} />
     }
   ];
 

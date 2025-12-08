@@ -6,6 +6,7 @@ import InputField from '../Common/InputField';
 
 const ProjectForm = ({ project, employees, onClose, onSave }) => {
   const [formData, setFormData] = useState({
+    serial_number: project?.serial_number || '',
     address: project?.address || '',
     type: project?.type || 'DGN',
     company_name: project?.company_name || '',
@@ -43,28 +44,53 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
       return;
     }
 
+    // Validate phone format (basic validation for North American format)
+    if (formData.phone && !/^[\d\s\-\(\)]+$/.test(formData.phone)) {
+      setError('Please enter a valid phone number (numbers, spaces, dashes, and parentheses only)');
+      setLoading(false);
+      return;
+    }
+
     try {
       const dataToSave = {
-        ...formData,
+        address: formData.address,
+        name: formData.address, // Set name to address for compatibility
+        type: formData.type,
+        company_name: formData.company_name || null,
+        contact_person: formData.contact_person,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        job_description: formData.job_description || null,
+        status: formData.status,
         quotation_amount: formData.quotation_amount ? parseFloat(formData.quotation_amount) : null,
         invoice_amount: formData.invoice_amount ? parseFloat(formData.invoice_amount) : null,
         payment_amount: formData.payment_amount ? parseFloat(formData.payment_amount) : null,
         quotation_date: formData.quotation_date || null,
         invoice_date: formData.invoice_date || null,
         payment_date: formData.payment_date || null,
-        project_lead_id: formData.project_lead_id || null
+        project_lead_id: formData.project_lead_id || null,
+        notes: formData.notes || null
       };
 
       if (project) {
-        // Update existing project
+        // Update existing project - include serial_number if changed
+        const updateData = {
+          ...dataToSave,
+          serial_number: formData.serial_number ? parseInt(formData.serial_number) : project.serial_number
+        };
+        
         const { error } = await supabase
           .from('projects')
-          .update(dataToSave)
+          .update(updateData)
           .eq('id', project.id);
         
         if (error) throw error;
       } else {
-        // Create new project
+        // Create new project - include serial_number if provided
+        if (formData.serial_number) {
+          dataToSave.serial_number = parseInt(formData.serial_number);
+        }
+        
         const { error } = await supabase
           .from('projects')
           .insert([dataToSave]);
@@ -87,6 +113,16 @@ const ProjectForm = ({ project, employees, onClose, onSave }) => {
           {/* Basic Information */}
           <div className="col-md-6">
             <h6 className="text-muted mb-3">Basic Information</h6>
+            
+            {project && (
+              <InputField
+                label="Serial Number"
+                id="serial_number"
+                type="number"
+                value={formData.serial_number}
+                onChange={(val) => handleChange('serial_number', val)}
+              />
+            )}
             
             <InputField
               label="Contact Person"
