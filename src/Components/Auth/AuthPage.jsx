@@ -5,11 +5,9 @@ import InputField from '../Common/InputField';
 import Button from '../Common/Button';
 
 const AuthPage = () => {
-  const [isSignUp, setIsSignUp] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -21,25 +19,11 @@ const AuthPage = () => {
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-          },
-        });
-        if (error) throw error;
-        setMessage('Check your email for verification link!');
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
     } catch (error) {
       setError(error.message);
     } finally {
@@ -87,18 +71,8 @@ const AuthPage = () => {
 
       <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
         <div className="w-100" style={{ maxWidth: '400px' }}>
-          <Card title={showForgotPassword ? 'Reset Password' : (isSignUp ? 'Sign Up' : 'Sign In')}>
+          <Card title={showForgotPassword ? 'Reset Password' : 'Sign In'}>
             <form onSubmit={showForgotPassword ? handleForgotPassword : handleAuth}>
-              {!showForgotPassword && isSignUp && (
-                <InputField
-                  label="Full Name"
-                  id="fullName"
-                  value={fullName}
-                  onChange={setFullName}
-                  required
-                />
-              )}
-              
               <InputField
                 label="Email"
                 id="email"
@@ -133,13 +107,13 @@ const AuthPage = () => {
 
               <div className="d-grid gap-2">
                 <Button type="submit" variant="primary">
-                  {loading ? 'Loading...' : showForgotPassword ? 'Send Reset Email' : (isSignUp ? 'Sign Up' : 'Sign In')}
+                  {loading ? 'Loading...' : showForgotPassword ? 'Send Reset Email' : 'Sign In'}
                 </Button>
               </div>
             </form>
 
             <div className="text-center mt-3">
-              {!showForgotPassword && !isSignUp && (
+              {!showForgotPassword && (
                 <button
                   onClick={() => setShowForgotPassword(true)}
                   className="btn btn-link btn-sm"
@@ -154,15 +128,6 @@ const AuthPage = () => {
                   className="btn btn-link"
                 >
                   Back to Sign In
-                </button>
-              )}
-              
-              {!showForgotPassword && (
-                <button
-                  onClick={() => setIsSignUp(!isSignUp)}
-                  className="btn btn-link"
-                >
-                  {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
                 </button>
               )}
             </div>

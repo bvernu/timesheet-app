@@ -243,14 +243,15 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
                     </span>
                   </td>
                   <td>
-                    <button
-                      onClick={() => handleToggleRole(employee.id, employee.role)}
-                      className="btn btn-sm btn-outline-primary me-2"
-                      disabled={employee.id === currentUser.id}
-                      title={employee.id === currentUser.id ? "Can't change your own role" : "Toggle role"}
-                    >
-                      Toggle Role
-                    </button>
+                    {employee.id !== currentUser.id && (
+                      <button
+                        onClick={() => handleToggleRole(employee.id, employee.role)}
+                        className="btn btn-sm btn-outline-primary me-2"
+                        title="Toggle role"
+                      >
+                        Toggle Role
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowResetPassword(employee)}
                       className="btn btn-sm btn-outline-warning"

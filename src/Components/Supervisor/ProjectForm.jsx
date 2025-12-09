@@ -32,7 +32,27 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
   const [loading, setLoading] = useState(false);
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // Format phone number as user types
+    if (field === 'phone') {
+      // Remove all non-digits
+      const digits = value.replace(/\D/g, '');
+      
+      // Format as (###) ###-####
+      let formatted = '';
+      if (digits.length > 0) {
+        formatted = '(' + digits.substring(0, 3);
+        if (digits.length > 3) {
+          formatted += ') ' + digits.substring(3, 6);
+        }
+        if (digits.length > 6) {
+          formatted += '-' + digits.substring(6, 10);
+        }
+      }
+      
+      setFormData(prev => ({ ...prev, [field]: formatted }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -165,9 +185,10 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             <InputField
               label="Phone"
               id="phone"
-              type="tel"
+              type="text"
               value={formData.phone}
               onChange={(val) => handleChange('phone', val)}
+              className="form-control"
             />
           </div>
 

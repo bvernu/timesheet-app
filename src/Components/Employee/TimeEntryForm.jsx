@@ -6,10 +6,14 @@ import Button from '../Common/Button';
 const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => {
   const [projectId, setProjectId] = useState(editingEntry?.project_id || '');
   const [clockIn, setClockIn] = useState(
-    editingEntry?.clock_in ? new Date(editingEntry.clock_in).toISOString().slice(0, 16) : ''
+    editingEntry?.clock_in 
+      ? new Date(new Date(editingEntry.clock_in).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+      : ''
   );
   const [clockOut, setClockOut] = useState(
-    editingEntry?.clock_out ? new Date(editingEntry.clock_out).toISOString().slice(0, 16) : ''
+    editingEntry?.clock_out 
+      ? new Date(new Date(editingEntry.clock_out).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+      : ''
   );
   const [notes, setNotes] = useState(editingEntry?.notes || '');
   const [error, setError] = useState('');
@@ -26,8 +30,8 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
     const entryData = {
       employee_id: profile.id,
       project_id: projectId,
-      clock_in: clockIn,
-      clock_out: clockOut || null,
+      clock_in: new Date(clockIn).toISOString(),
+      clock_out: clockOut ? new Date(clockOut).toISOString() : null,
       notes: notes,
     };
 
