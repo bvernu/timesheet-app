@@ -110,7 +110,7 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
 
       <Card>
         <div className="table-responsive">
-          <table className="table table-hover table-sm">
+          <table className="table table-hover table-sm" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
                 <th>Name</th>
