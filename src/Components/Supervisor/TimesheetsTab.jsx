@@ -1,11 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Card from '../Common/Card';
 
 const TimesheetsTab = ({ timeEntries, employees }) => {
   const [selectedEmployee, setSelectedEmployee] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Set default date range to last 7 days
+  useEffect(() => {
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
+    
+    setEndDate(today.toISOString().split('T')[0]);
+    setStartDate(sevenDaysAgo.toISOString().split('T')[0]);
+  }, []);
   
+  const calculateBreak = (hours) => {
+    if (hours > 10) return 1.0;
+    if (hours > 5) return 0.5;
+    return 0;
+  };
+
   const filteredEntries = timeEntries.filter(entry => {
     const matchesEmployee = selectedEmployee === 'all' || entry.employee_id === selectedEmployee;
     
@@ -27,6 +43,17 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
     
     return matchesEmployee && matchesDate;
   });
+
+  // Calculate total net hours
+  const totalNetHours = filteredEntries.reduce((sum, entry) => {
+    if (entry.clock_out) {
+      const totalHours = (new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60);
+      const breakHours = calculateBreak(totalHours);
+      const netHours = totalHours - breakHours;
+      return sum + netHours;
+    }
+    return sum;
+  }, 0);
 
   return (
     <div>
@@ -83,15 +110,18 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
 
       <Card>
         <div className="table-responsive">
-          <table className="table table-hover">
+          <table className="table table-hover table-sm">
             <thead>
               <tr>
-                <th>Employee Name</th>
+                <th>Name</th>
                 <th>Date</th>
+                <th>Project</th>
                 <th>Time In</th>
                 <th>Time Out</th>
-                <th>Hours</th>
-                <th>Project</th>
+                <th>Total Time</th>
+                <th>Break</th>
+                <th>Net Time</th>
+                <th>Mileage</th>
                 <th>Notes</th>
               </tr>
             </thead>
@@ -99,30 +129,44 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
               {filteredEntries.map((entry) => {
                 const clockInDate = new Date(entry.clock_in);
                 const clockOutDate = entry.clock_out ? new Date(entry.clock_out) : null;
-                const hours = clockOutDate 
-                  ? ((clockOutDate - clockInDate) / (1000 * 60 * 60)).toFixed(2)
-                  : 'Ongoing';
+                const totalHours = clockOutDate 
+                  ? (clockOutDate - clockInDate) / (1000 * 60 * 60)
+                  : 0;
+                const breakHours = clockOutDate ? calculateBreak(totalHours) : 0;
+                const netHours = clockOutDate ? totalHours - breakHours : 0;
                 
                 return (
                   <tr key={entry.id}>
-                    <td className="fw-bold">{entry.profiles?.full_name || 'Unknown'}</td>
+                    <td className="fw-medium">{entry.profiles?.full_name || 'Unknown'}</td>
                     <td>{clockInDate.toLocaleDateString()}</td>
+                    <td>{entry.projects?.name || 'Unknown'}</td>
                     <td>{clockInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                     <td>{clockOutDate ? clockOutDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                    <td>{hours}</td>
-                    <td>{entry.projects?.name || 'Unknown'}</td>
+                    <td>{clockOutDate ? totalHours.toFixed(2) : 'Ongoing'}</td>
+                    <td>{clockOutDate ? breakHours.toFixed(2) : '-'}</td>
+                    <td className="fw-bold">{clockOutDate ? netHours.toFixed(2) : '-'}</td>
+                    <td>{entry.mileage ? `${entry.mileage} km` : '-'}</td>
                     <td>{entry.notes || '-'}</td>
                   </tr>
                 );
               })}
               {filteredEntries.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="text-center text-muted py-4">
+                  <td colSpan="10" className="text-center text-muted py-4">
                     No time entries found for this employee.
                   </td>
                 </tr>
               )}
             </tbody>
+            <tfoot>
+              <tr className="table-active">
+                <td colSpan="7" className="text-end fw-bold">Total Net Hours:</td>
+                <td className="fw-bold" style={{ fontSize: '1.1rem' }}>
+                  {totalNetHours.toFixed(2)}
+                </td>
+                <td colSpan="2"></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </Card>

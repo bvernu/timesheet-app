@@ -48,18 +48,25 @@ const EmployeeDashboard = ({ profile }) => {
     }
   };
 
+  const calculateBreak = (hours) => {
+    if (hours > 10) return 1.0;
+    if (hours > 5) return 0.5;
+    return 0;
+  };
+
   return (
     <div className="container">
       <div className="row mb-4">
         <div className="col">
           <div className="d-flex justify-content-between align-items-center">
-            <h2>My Timesheet</h2>
+            <h2>{profile.full_name}'s Timesheet</h2>
             <Button 
               onClick={() => {
                 setShowAddForm(true);
                 setEditingEntry(null);
               }}
               variant="primary"
+              style={{ backgroundColor: '#F18F20', borderColor: '#F18F20' }}
             >
               Add Time Entry
             </Button>
@@ -97,9 +104,12 @@ const EmployeeDashboard = ({ profile }) => {
                   <tr>
                     <th>Project</th>
                     <th>Date</th>
-                    <th>Clock In</th>
-                    <th>Clock Out</th>
-                    <th>Hours</th>
+                    <th>Time In</th>
+                    <th>Time Out</th>
+                    <th>Total Time</th>
+                    <th>Break</th>
+                    <th>Net Time</th>
+                    <th>Mileage</th>
                     <th>Notes</th>
                     <th>Actions</th>
                   </tr>
@@ -108,9 +118,11 @@ const EmployeeDashboard = ({ profile }) => {
                   {timeEntries.map((entry) => {
                     const clockInDate = new Date(entry.clock_in);
                     const clockOutDate = entry.clock_out ? new Date(entry.clock_out) : null;
-                    const hours = clockOutDate 
-                      ? ((clockOutDate - clockInDate) / (1000 * 60 * 60)).toFixed(2)
-                      : 'Ongoing';
+                    const totalHours = clockOutDate 
+                      ? (clockOutDate - clockInDate) / (1000 * 60 * 60)
+                      : 0;
+                    const breakHours = clockOutDate ? calculateBreak(totalHours) : 0;
+                    const netHours = clockOutDate ? totalHours - breakHours : 0;
                     
                     return (
                       <tr key={entry.id}>
@@ -118,7 +130,10 @@ const EmployeeDashboard = ({ profile }) => {
                         <td>{clockInDate.toLocaleDateString()}</td>
                         <td>{clockInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                         <td>{clockOutDate ? clockOutDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                        <td>{hours}</td>
+                        <td>{clockOutDate ? totalHours.toFixed(2) : 'Ongoing'}</td>
+                        <td>{clockOutDate ? breakHours.toFixed(2) : '-'}</td>
+                        <td className="fw-bold">{clockOutDate ? netHours.toFixed(2) : '-'}</td>
+                        <td>{entry.mileage ? `${entry.mileage} km` : '-'}</td>
                         <td>{entry.notes || '-'}</td>
                         <td>
                           <button
@@ -139,7 +154,7 @@ const EmployeeDashboard = ({ profile }) => {
                   })}
                   {timeEntries.length === 0 && (
                     <tr>
-                      <td colSpan="7" className="text-center text-muted py-4">
+                      <td colSpan="10" className="text-center text-muted py-4">
                         No time entries yet. Click "Add Time Entry" to get started.
                       </td>
                     </tr>

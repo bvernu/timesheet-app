@@ -16,6 +16,7 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
       : ''
   );
   const [notes, setNotes] = useState(editingEntry?.notes || '');
+  const [mileage, setMileage] = useState(editingEntry?.mileage || '');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
@@ -33,6 +34,7 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
       clock_in: new Date(clockIn).toISOString(),
       clock_out: clockOut ? new Date(clockOut).toISOString() : null,
       notes: notes,
+      mileage: mileage ? parseFloat(mileage) : null,
     };
 
     try {
@@ -115,6 +117,18 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
             rows={3}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label className="form-label">Mileage (km)</label>
+          <input
+            type="number"
+            step="0.1"
+            className="form-control"
+            value={mileage}
+            onChange={(e) => setMileage(e.target.value)}
+            placeholder="Optional"
           />
         </div>
 
