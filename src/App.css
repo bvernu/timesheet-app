@@ -100,3 +100,10 @@ h2, h3, h4, h5 {
   border-color: var(--primary-orange);
   box-shadow: 0 0 0 0.2rem rgba(241, 143, 32, 0.25);
 }
+
+.notes-col {
+  width: 180px;          /* or 180px if you want tighter */
+  max-width: 180px;
+  white-space: normal;  /* allow wrapping */
+  word-break: break-word;
+}
