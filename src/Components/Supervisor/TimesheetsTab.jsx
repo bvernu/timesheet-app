@@ -122,7 +122,7 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
                 <th>Break</th>
                 <th>Net Time</th>
                 <th>Mileage</th>
-                <th>Notes</th>
+                <th className="notes-col">Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -146,7 +146,7 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
                     <td>{clockOutDate ? breakHours.toFixed(2) : '-'}</td>
                     <td className="fw-bold">{clockOutDate ? netHours.toFixed(2) : '-'}</td>
                     <td>{entry.mileage ? `${entry.mileage} km` : '-'}</td>
-                    <td>{entry.notes || '-'}</td>
+                    <td className="notes-col">{entry.notes || '-'}</td>
                   </tr>
                 );
               })}
