@@ -76,29 +76,44 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
   };
 
   const handleToggleRole = async (employeeId, currentRole) => {
-    setError('');
-    setSuccess('');
-    
-    const newRole = currentRole === 'supervisor' ? 'employee' : 'supervisor';
-    
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', employeeId)
-        .select();
-      
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error('No rows updated. Check RLS policies.');
+  setError('');
+  setSuccess('');
 
-      setSuccess(`Role updated to ${newRole} successfully!`);
-      setTimeout(() => setSuccess(''), 2000);
-      onRefresh();
-    } catch (err) {
-      setError(`Failed to update role: ${err.message}`);
-      setTimeout(() => setError(''), 5000);
+  const getNextRole = (role) => {
+    switch (role) {
+      case 'employee':
+        return 'supervisor';
+      case 'supervisor':
+        return 'manager';
+      case 'manager':
+      default:
+        return 'employee';
     }
   };
+
+  const newRole = getNextRole(currentRole);
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', employeeId)
+      .select();
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('No rows updated. Check RLS policies.');
+    }
+
+    setSuccess(`Role updated to ${newRole} successfully!`);
+    setTimeout(() => setSuccess(''), 2000);
+    onRefresh();
+  } catch (err) {
+    setError(`Failed to update role: ${err.message}`);
+    setTimeout(() => setError(''), 5000);
+  }
+};
+
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
@@ -226,7 +241,18 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
                   <td>{employee.full_name}</td>
                   <td>{employee.email}</td>
                   <td>
-                    <span className={`badge ${employee.role === 'supervisor' ? 'bg-primary' : 'bg-success'}`}>
+                    <span
+                      className={`badge ${
+                        employee.role === 'employee'
+                          ? 'bg-success'
+                          : employee.role === 'supervisor'
+                          ? 'bg-primary'
+                          : employee.role === 'manager'
+                          ? 'bg-warning'
+                          : 'bg-secondary'
+                      }`}
+                    >
+
                       {employee.role}
                     </span>
                   </td>
