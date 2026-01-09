@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import AuthPage from './Components/Auth/AuthPage';
 import EmployeeDashboard from './Components/Employee/EmployeeDashboard';
+import ManagerDashboard from './Components/Manager/ManagerDashboard';
 import SupervisorDashboard from './Components/Supervisor/SupervisorDashboard';
 import ChangePasswordModal from './ChangePasswordModal';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -46,6 +47,12 @@ function App() {
       .single();
     
     if (data) {
+      // Check if user is deleted
+      if (data.role === 'deleted') {
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
       setProfile(data);
     }
     setLoading(false);
@@ -96,7 +103,7 @@ function App() {
           </span>
           <div className="d-flex align-items-center gap-2">
             <span className="me-3" style={{ color: '#080808', fontWeight: '500' }}>
-              {profile.full_name} ({profile.role})
+              {profile.full_name}
             </span>
             <button 
               onClick={() => setShowChangePassword(true)}
@@ -126,6 +133,8 @@ function App() {
       <div className="container-fluid py-4">
         {profile.role === 'supervisor' ? (
           <SupervisorDashboard profile={profile} />
+        ) : profile.role === 'manager' ? (
+          <ManagerDashboard profile={profile} />
         ) : (
           <EmployeeDashboard profile={profile} />
         )}

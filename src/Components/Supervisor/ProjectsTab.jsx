@@ -94,45 +94,54 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
       ) : (
         <>
           <div className="row mb-3">
-            <div className="col-md-4">
-              <h4>Projects</h4>
+            <div className="col-12">
+              <h4 className="mb-3">Projects</h4>
             </div>
-            <div className="col-md-8 text-end">
-              <div className="d-inline-flex align-items-center gap-2">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Search projects..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: '250px' }}
-                />
-                <select
-                  className="form-select"
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  style={{ width: '200px' }}
-                >
-                  <option value="all">All Status</option>
-                  <option value="in progress">In Progress</option>
-                  <option value="quote sent">Quote Sent</option>
-                  <option value="40%">40%</option>
-                  <option value="50% completed">50% Completed</option>
-                  <option value="60%">60%</option>
-                  <option value="invoiced">Invoiced</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-                <Button 
-                  onClick={() => {
-                    setShowAddProject(true);
-                    setEditingProject(null);
-                  }} 
-                  variant="primary"
-                  disabled={editingProject !== null}
-                >
-                  Add Project
-                </Button>
+            <div className="col-12">
+              <div className="filter-section">
+                <div className="row g-2">
+                  <div className="col-md-5 col-12">
+                    <label className="small">Search:</label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      placeholder="Search projects..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="col-md-4 col-8">
+                    <label className="small">Status:</label>
+                    <select
+                      className="form-select form-select-sm"
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                    >
+                      <option value="all">All Status</option>
+                      <option value="in progress">In Progress</option>
+                      <option value="quote sent">Quote Sent</option>
+                      <option value="40%">40%</option>
+                      <option value="50% completed">50% Completed</option>
+                      <option value="60%">60%</option>
+                      <option value="invoiced">Invoiced</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="col-md-3 col-4 d-flex align-items-end">
+                    <Button 
+                      onClick={() => {
+                        setShowAddProject(true);
+                        setEditingProject(null);
+                      }} 
+                      variant="primary"
+                      disabled={editingProject !== null}
+                      className="w-100"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

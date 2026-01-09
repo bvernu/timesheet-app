@@ -3,16 +3,17 @@ import { supabase } from '../../supabaseClient';
 import Card from '../Common/Card';
 import Button from '../Common/Button';
 import InputField from '../Common/InputField';
+import EmployeeDetailsView from './EmployeeDetailsView';
 
 const UserManagement = ({ employees, onRefresh, currentUser }) => {
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(null);
+  const [viewingEmployee, setViewingEmployee] = useState(null);
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
     password: ''
   });
-  const [resetEmail, setResetEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,14 +25,11 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
     setLoading(true);
 
     try {
-      // Use the invite user method - the trigger will create the profile automatically
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          data: {
-            full_name: formData.full_name
-          },
+          data: { full_name: formData.full_name },
           emailRedirectTo: window.location.origin
         }
       });
@@ -39,14 +37,15 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
       if (authError) throw authError;
 
       setSuccess(`Employee account created! An email has been sent to ${formData.email} to verify their account. Temporary password: ${formData.password}`);
+
       setFormData({ email: '', full_name: '', password: '' });
       setShowAddEmployee(false);
-      
-      // Refresh after a delay to allow the trigger to create the profile
+
       setTimeout(() => {
         setSuccess('');
         onRefresh();
-      }, 2000);
+      }, 3000);
+
     } catch (err) {
       setError(err.message || 'Failed to create employee');
     } finally {
@@ -89,20 +88,13 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
         .eq('id', employeeId)
         .select();
       
-      if (error) {
-        console.error('Update error:', error);
-        throw error;
-      }
-      
-      if (!data || data.length === 0) {
-        throw new Error('No rows updated. Check RLS policies.');
-      }
-      
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('No rows updated. Check RLS policies.');
+
       setSuccess(`Role updated to ${newRole} successfully!`);
       setTimeout(() => setSuccess(''), 2000);
       onRefresh();
     } catch (err) {
-      console.error('Toggle role error:', err);
       setError(`Failed to update role: ${err.message}`);
       setTimeout(() => setError(''), 5000);
     }
@@ -234,15 +226,17 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
                   <td>{employee.full_name}</td>
                   <td>{employee.email}</td>
                   <td>
-                    <span className={`badge ${
-                      employee.role === 'supervisor' 
-                        ? 'bg-primary' 
-                        : 'bg-success'
-                    }`}>
+                    <span className={`badge ${employee.role === 'supervisor' ? 'bg-primary' : 'bg-success'}`}>
                       {employee.role}
                     </span>
                   </td>
                   <td>
+                    <button
+                      onClick={() => setViewingEmployee(employee)}
+                      className="btn btn-sm btn-outline-info me-2"
+                    >
+                      View
+                    </button>
                     {employee.id !== currentUser.id && (
                       <button
                         onClick={() => handleToggleRole(employee.id, employee.role)}
@@ -265,6 +259,17 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
           </table>
         </div>
       </Card>
+
+      {viewingEmployee && (
+        <EmployeeDetailsView
+          employee={viewingEmployee}
+          onClose={() => setViewingEmployee(null)}
+          onSave={() => {
+            setViewingEmployee(null);
+            onRefresh();
+          }}
+        />
+      )}
 
       {showResetPassword && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>

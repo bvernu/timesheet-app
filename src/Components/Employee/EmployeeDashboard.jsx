@@ -58,7 +58,7 @@ const EmployeeDashboard = ({ profile }) => {
     <div className="container">
       <div className="row mb-4">
         <div className="col">
-          <div className="d-flex justify-content-between align-items-center">
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h2>{profile.full_name}'s Timesheet</h2>
             <Button 
               onClick={() => {
@@ -66,7 +66,12 @@ const EmployeeDashboard = ({ profile }) => {
                 setEditingEntry(null);
               }}
               variant="primary"
-              style={{ backgroundColor: '#F18F20', borderColor: '#F18F20' }}
+              style={{ 
+                backgroundColor: '#F18F20', 
+                borderColor: '#F18F20',
+                padding: '0.75rem 1.5rem',
+                fontSize: '1.1rem'
+              }}
             >
               Add Time Entry
             </Button>
@@ -110,7 +115,7 @@ const EmployeeDashboard = ({ profile }) => {
                     <th>Break</th>
                     <th>Net Time</th>
                     <th>Mileage</th>
-                    <th>Notes</th>
+                    <th className="hide-mobile">Notes</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -134,7 +139,7 @@ const EmployeeDashboard = ({ profile }) => {
                         <td>{clockOutDate ? breakHours.toFixed(2) : '-'}</td>
                         <td className="fw-bold">{clockOutDate ? netHours.toFixed(2) : '-'}</td>
                         <td>{entry.mileage ? `${entry.mileage} km` : '-'}</td>
-                        <td>{entry.notes || '-'}</td>
+                        <td className="hide-mobile">{entry.notes || '-'}</td>
                         <td>
                           <button
                             onClick={() => setEditingEntry(entry)}
