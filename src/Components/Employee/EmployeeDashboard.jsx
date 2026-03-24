@@ -141,18 +141,24 @@ const EmployeeDashboard = ({ profile }) => {
                         <td>{entry.mileage ? `${entry.mileage} km` : '-'}</td>
                         <td className="hide-mobile">{entry.notes || '-'}</td>
                         <td>
-                          <button
-                            onClick={() => setEditingEntry(entry)}
-                            className="btn btn-sm btn-outline-primary me-2"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(entry.id)}
-                            className="btn btn-sm btn-outline-danger"
-                          >
-                            Delete
-                          </button>
+                          {!entry.approved ? (
+                            <>
+                              <button
+                                onClick={() => setEditingEntry(entry)}
+                                className="btn btn-sm btn-outline-primary me-2"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(entry.id)}
+                                className="btn btn-sm btn-outline-danger"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : (
+                            <span className="badge bg-success"> Approved - Locked</span>
+                          )}
                         </td>
                       </tr>
                     );

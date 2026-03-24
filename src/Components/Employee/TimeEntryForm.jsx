@@ -4,6 +4,20 @@ import Card from '../Common/Card';
 import Button from '../Common/Button';
 
 const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => {
+  if (editingEntry?.approved) {
+    return (
+      <Card title="Can not edit - Entry has been approved">
+        <div className="alert alert-warning">
+          <strong>This timesheet entry has been approved and cannot be edited</strong>
+          <p className="mb-0 mt-2">
+            Approved on: {new Date(editingEntry.approved_at).toLocaleDateString()}
+          </p>
+        </div>
+        <Button onCLick={onClose} variant="secondary">Close</Button>
+      </Card>
+    );
+  }
+  
   const [projectId, setProjectId] = useState(editingEntry?.project_id || '');
   const [clockIn, setClockIn] = useState(
     editingEntry?.clock_in 
