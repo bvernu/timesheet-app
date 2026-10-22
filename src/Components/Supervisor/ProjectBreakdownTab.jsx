@@ -99,7 +99,7 @@ const ProjectBreakdownTab = ({ timeEntries, projects, employees }) => {
                         role="progressbar"
                         style={{ 
                           width: `${(data.hours / totalProjectHours) * 100}%`,
-                          backgroundColor: '#F18F20'
+                          backgroundColor: 'var(--brand-primary)'
                         }}
                         aria-valuenow={(data.hours / totalProjectHours) * 100}
                         aria-valuemin="0"

@@ -4,8 +4,10 @@ import Card from '../Common/Card';
 import Button from '../Common/Button';
 import ProjectForm from './ProjectForm';
 import ProjectView from './ProjectView';
+import { useTenant } from '../../tenant/TenantContext';
 
 const ProjectsTab = ({ projects, onRefresh, employees }) => {
+  const tenant = useTenant();
   const [showAddProject, setShowAddProject] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [viewingProject, setViewingProject] = useState(null);
@@ -14,7 +16,7 @@ const ProjectsTab = ({ projects, onRefresh, employees }) => {
 
   // Get next serial number
   const getNextSerialNumber = () => {
-    if (projects.length === 0) return 1288;
+    if (projects.length === 0) return tenant.project_serial_start ?? 1;
     const maxSerial = Math.max(...projects.map(p => parseInt(p.serial_number) || 0));
     return maxSerial + 1;
   };

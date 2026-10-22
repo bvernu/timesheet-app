@@ -219,7 +219,7 @@ const ProjectView = ({ project, onClose, onEdit, employees }) => {
                       role="progressbar"
                       style={{ 
                         width: `${(data.hours / totalProjectHours) * 100}%`,
-                        backgroundColor: '#F18F20'
+                        backgroundColor: 'var(--brand-primary)'
                       }}
                     />
                   </div>

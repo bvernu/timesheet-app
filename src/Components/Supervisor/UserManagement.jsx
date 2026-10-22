@@ -25,18 +25,26 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: { full_name: formData.full_name },
-          emailRedirectTo: window.location.origin
+      // Accounts are created by a server-side function, which puts the new employee in the same
+      // company as the supervisor creating them.
+      const { error: fnError } = await supabase.functions.invoke('create-employee', {
+        body: {
+          email: formData.email,
+          full_name: formData.full_name,
+          password: formData.password
         }
       });
 
-      if (authError) throw authError;
+      if (fnError) {
+        let message = fnError.message;
+        try {
+          const body = await fnError.context.json();
+          if (body?.error) message = body.error;
+        } catch { /* keep the generic message */ }
+        throw new Error(message);
+      }
 
-      setSuccess(`Employee account created! An email has been sent to ${formData.email} to verify their account. Temporary password: ${formData.password}`);
+      setSuccess(`Employee account created! They can sign in now with ${formData.email} and the temporary password: ${formData.password}`);
 
       setFormData({ email: '', full_name: '', password: '' });
       setShowAddEmployee(false);

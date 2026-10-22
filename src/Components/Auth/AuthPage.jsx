@@ -3,8 +3,9 @@ import { supabase } from '../../supabaseClient';
 import Card from '../Common/Card';
 import InputField from '../Common/InputField';
 import Button from '../Common/Button';
+import BrandLogo from '../../tenant/BrandLogo';
 
-const AuthPage = () => {
+const AuthPage = ({ notice = '', onClearNotice = () => {} }) => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,6 +17,7 @@ const AuthPage = () => {
     e.preventDefault();
     setError('');
     setMessage('');
+    onClearNotice();
     setLoading(true);
 
     try {
@@ -53,17 +55,12 @@ const AuthPage = () => {
 
   return (
     <div>
-      <nav className="navbar navbar-expand-lg navbar-light" style={{ backgroundColor: '#E8E8E8', borderBottom: '3px solid #F18F20' }}>
+      <nav className="navbar navbar-expand-lg navbar-light" style={{ backgroundColor: 'var(--brand-navbar-bg)', borderBottom: '3px solid var(--brand-primary)' }}>
         <div className="container-fluid">
           <span className="navbar-brand mb-0 h1">
-            <img 
-              src="/logo.png" 
-              alt="Company Logo" 
-              height="40"
-              className="me-2"
-            />
+            <BrandLogo />
           </span>
-          <span style={{ color: '#080808', fontSize: '1.5rem', fontWeight: '600' }}>
+          <span style={{ color: 'var(--brand-navbar-text)', fontSize: '1.5rem', fontWeight: '600' }}>
             Timesheet
           </span>
         </div>
@@ -91,6 +88,12 @@ const AuthPage = () => {
                   onChange={setPassword}
                   required
                 />
+              )}
+
+              {notice && !error && (
+                <div className="alert alert-warning" role="alert">
+                  {notice}
+                </div>
               )}
 
               {error && (

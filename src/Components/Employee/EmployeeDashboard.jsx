@@ -67,8 +67,9 @@ const EmployeeDashboard = ({ profile }) => {
               }}
               variant="primary"
               style={{ 
-                backgroundColor: '#F18F20', 
-                borderColor: '#F18F20',
+                backgroundColor: 'var(--brand-primary)', 
+                borderColor: 'var(--brand-primary)',
+                color: 'var(--brand-primary-contrast)',
                 padding: '0.75rem 1.5rem',
                 fontSize: '1.1rem'
               }}

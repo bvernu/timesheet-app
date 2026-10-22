@@ -1,66 +1,74 @@
-/* Company Color Palette */
+/* Company colour palette.
+   These are only DEFAULTS. The real values are set at runtime from the company's theme
+   (see src/tenant/theme.js), so every company site gets its own colours. */
 :root {
-  --primary-gray: #6B6D72;
-  --primary-orange: #F18F20;
-  --primary-black: #080808;
-  --secondary-gray: #A8A5A5;
-  --secondary-orange: #E25424;
+  --brand-primary: #F18F20;
+  --brand-primary-rgb: 241, 143, 32;
+  --brand-primary-hover: #D07A1B;
+  --brand-primary-contrast: #080808;
+  --brand-secondary: #6B6D72;
+  --brand-secondary-contrast: #ffffff;
+  --brand-border: #B5B6B8;
+  --brand-navbar-bg: #E8E8E8;
+  --brand-navbar-text: #080808;
+  --brand-text: #080808;
 }
 
 /* Override Bootstrap primary colors */
 .btn-primary {
-  background-color: var(--primary-orange);
-  border-r: var(--primary-orange);
-  color: white;
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary-contrast);
 }
 
 .btn-primary:hover {
-  background-color: var(--secondary-orange);
-  border-color: var(--secondary-orange);
+  background-color: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
+  color: var(--brand-primary-contrast);
 }
 
 .btn-primary:focus,
 .btn-primary:active {
-  background-color: var(--secondary-orange) !important;
-  border-color: var(--secondary-orange) !important;
-  box-shadow: 0 0 0 0.2rem rgba(241, 143, 32, 0.5) !important;
+  background-color: var(--brand-primary-hover) !important;
+  border-color: var(--brand-primary-hover) !important;
+  box-shadow: 0 0 0 0.2rem rgba(var(--brand-primary-rgb), 0.5) !important;
 }
 
 .btn-outline-primary {
-  color: var(--primary-orange);
-  border-color: var(--primary-orange);
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .btn-outline-primary:hover {
-  background-color: var(--primary-orange);
-  border-color: var(--primary-orange);
-  color: white;
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary-contrast);
 }
 
 .nav-tabs .nav-link.active {
-  color: var(--primary-orange);
-  border-color: var(--secondary-gray) var(--secondary-gray) #fff;
-  border-bottom: 3px solid var(--primary-orange);
+  color: var(--brand-primary);
+  border-color: var(--brand-border) var(--brand-border) #fff;
+  border-bottom: 3px solid var(--brand-primary);
 }
 
 .nav-tabs .nav-link:hover {
-  color: var(--primary-orange);
+  color: var(--brand-primary);
   border-color: transparent;
 }
 
 .nav-tabs .nav-link {
-  color: var(--primary-black);
+  color: var(--brand-text);
 }
 
 .card {
-  border: 1px solid var(--secondary-gray);
+  border: 1px solid var(--brand-border);
   margin-bottom: 1rem; /* mobile-friendly spacing included */
 }
 
 .card-header {
-  background-color: var(--primary-gray);
-  color: white;
-  border-bottom: 2px solid var(--primary-orange);
+  background-color: var(--brand-secondary);
+  color: var(--brand-secondary-contrast);
+  border-bottom: 2px solid var(--brand-primary);
 }
 
 .card-body {
@@ -68,28 +76,28 @@
 }
 
 .table thead {
-  background-color: var(--primary-gray);
-  color: white;
+  background-color: var(--brand-secondary);
+  color: var(--brand-secondary-contrast);
 }
 
 .badge.bg-primary {
-  background-color: var(--primary-orange) !important;
+  background-color: var(--brand-primary) !important;
 }
 
 .badge.bg-success {
-  background-color: var(--primary-gray) !important;
+  background-color: var(--brand-secondary) !important;
 }
 
 .progress-bar.bg-primary {
-  background-color: var(--primary-orange) !important;
+  background-color: var(--brand-primary) !important;
 }
 
 .progress-bar.bg-success {
-  background-color: var(--primary-gray) !important;
+  background-color: var(--brand-secondary) !important;
 }
 
 .text-primary {
-  color: var(--primary-orange) !important;
+  color: var(--brand-primary) !important;
 }
 
 .bg-light {
@@ -97,13 +105,13 @@
 }
 
 h2, h3, h4, h5 {
-  color: var(--primary-black);
+  color: var(--brand-text);
 }
 
 .form-control:focus,
 .form-select:focus {
-  border-color: var(--primary-orange);
-  box-shadow: 0 0 0 0.2rem rgba(241, 143, 32, 0.25);
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 0.2rem rgba(var(--brand-primary-rgb), 0.25);
 }
 
 .notes-col {

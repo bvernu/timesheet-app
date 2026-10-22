@@ -62,7 +62,7 @@ const InsightsTab = ({ timeEntries, employees, projects }) => {
                       <div
                         className="progress-bar"
                         role="progressbar"
-                        style={{ width: `${(hours / totalHours) * 100}%`, backgroundColor: '#F18F20' }}
+                        style={{ width: `${(hours / totalHours) * 100}%`, backgroundColor: 'var(--brand-primary)' }}
                         aria-valuenow={(hours / totalHours) * 100}
                         aria-valuemin="0"
                         aria-valuemax="100"
@@ -92,7 +92,7 @@ const InsightsTab = ({ timeEntries, employees, projects }) => {
                       <div
                         className="progress-bar"
                         role="progressbar"
-                        style={{ width: `${(hours / totalHours) * 100}%`, backgroundColor: '#F18F20' }}
+                        style={{ width: `${(hours / totalHours) * 100}%`, backgroundColor: 'var(--brand-primary)' }}
                         aria-valuenow={(hours / totalHours) * 100}
                         aria-valuemin="0"
                         aria-valuemax="100"
