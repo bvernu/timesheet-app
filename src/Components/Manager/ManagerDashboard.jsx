@@ -8,10 +8,10 @@ const ManagerDashboard = ({ profile }) => {
   const [activeTab, setActiveTab] = useState('my-timesheet');
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadProjects();
-    loadEmployees();
+    Promise.all([loadProjects(), loadEmployees()]).finally(() => setLoading(false));
   }, []);
 
   const loadProjects = async () => {
@@ -39,31 +39,17 @@ const ManagerDashboard = ({ profile }) => {
   const tabs = [
     {
       id: 'my-timesheet',
-      label: 'My Timesheet',
+      label: 'My timesheet',
       content: <EmployeeDashboard profile={profile} />
     },
     {
       id: 'projects',
       label: 'Projects',
-      content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} />
+      content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} loading={loading} />
     }
   ];
 
-  return (
-    <div className="container-fluid">
-      <div className="row mb-4">
-        <div className="col">
-          <h2>Manager Dashboard</h2>
-        </div>
-      </div>
-
-      <div className="row">
-        <div className="col">
-          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-        </div>
-      </div>
-    </div>
-  );
+  return <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />;
 };
 
 export default ManagerDashboard;

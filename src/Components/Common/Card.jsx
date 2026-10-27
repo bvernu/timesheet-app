@@ -1,25 +1,14 @@
-// import { ReactNode } from "react";
-
-
-
-// const Card = ({ title, children }) => {
-//   return (
-//     <div className="card">
-//       {title && <div className="card-heading">{title}</div>}
-//       <div className="card-body">{children}</div>
-//     </div>
-//   );
-// };
-
-// export default Card;
-
-const Card = ({ title, children, className = "" }) => {
-  return (
-    <div className={`card ${className}`}>
-      {title && <div className="card-header"><h5 className="mb-0">{title}</h5></div>}
-      <div className="card-body">{children}</div>
-    </div>
-  );
-};
+// A white panel with an optional title (and optional actions on the right of the title).
+const Card = ({ title, actions, children, className = '', flush = false }) => (
+  <section className={`card ${className}`}>
+    {(title || actions) && (
+      <header className="card-header">
+        {title && <h3 className="card-title">{title}</h3>}
+        {actions && <div className="card-actions">{actions}</div>}
+      </header>
+    )}
+    <div className={`card-body${flush ? ' card-body-flush' : ''}`}>{children}</div>
+  </section>
+);
 
 export default Card;

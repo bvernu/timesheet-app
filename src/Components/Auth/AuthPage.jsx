@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { supabase } from '../../supabaseClient';
-import Card from '../Common/Card';
 import InputField from '../Common/InputField';
 import Button from '../Common/Button';
 import BrandLogo from '../../tenant/BrandLogo';
+import { useTenant } from '../../tenant/TenantContext';
 
 const AuthPage = ({ notice = '', onClearNotice = () => {} }) => {
+  const tenant = useTenant();
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -53,22 +55,29 @@ const AuthPage = ({ notice = '', onClearNotice = () => {} }) => {
     }
   };
 
-  return (
-    <div>
-      <nav className="navbar navbar-expand-lg navbar-light" style={{ backgroundColor: 'var(--brand-navbar-bg)', borderBottom: '3px solid var(--brand-primary)' }}>
-        <div className="container-fluid">
-          <span className="navbar-brand mb-0 h1">
-            <BrandLogo />
-          </span>
-          <span style={{ color: 'var(--brand-navbar-text)', fontSize: '1.5rem', fontWeight: '600' }}>
-            Timesheet
-          </span>
-        </div>
-      </nav>
+  const switchMode = (forgot) => {
+    setShowForgotPassword(forgot);
+    setError('');
+    setMessage('');
+  };
 
-      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
-        <div className="w-100" style={{ maxWidth: '400px' }}>
-          <Card title={showForgotPassword ? 'Reset Password' : 'Sign In'}>
+  return (
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-panel">
+          {/* The logo sits on the company's top-bar colour, because that is what it was designed for */}
+          <div className="auth-brand">
+            <BrandLogo height={48} className="" />
+          </div>
+
+          <div className="auth-body">
+            <h1 className="auth-title">{showForgotPassword ? 'Reset your password' : 'Sign in'}</h1>
+            <p className="auth-subtitle">
+              {showForgotPassword
+                ? "Enter your email and we'll send you a reset link."
+                : `Welcome to the ${tenant.name} timesheet.`}
+            </p>
+
             <form onSubmit={showForgotPassword ? handleForgotPassword : handleAuth}>
               <InputField
                 label="Email"
@@ -76,18 +85,35 @@ const AuthPage = ({ notice = '', onClearNotice = () => {} }) => {
                 type="email"
                 value={email}
                 onChange={setEmail}
+                autoComplete="email"
                 required
               />
-              
+
               {!showForgotPassword && (
-                <InputField
-                  label="Password"
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={setPassword}
-                  required
-                />
+                <div className="field">
+                  <label htmlFor="password" className="form-label">
+                    Password<span className="required-mark" aria-hidden="true"> *</span>
+                  </label>
+                  <div className="password-field">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="form-control"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => setShowPassword((s) => !s)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
               )}
 
               {notice && !error && (
@@ -103,38 +129,22 @@ const AuthPage = ({ notice = '', onClearNotice = () => {} }) => {
               )}
 
               {message && (
-                <div className="alert alert-success" role="alert">
+                <div className="alert alert-success" role="status">
                   {message}
                 </div>
               )}
 
-              <div className="d-grid gap-2">
-                <Button type="submit" variant="primary">
-                  {loading ? 'Loading...' : showForgotPassword ? 'Send Reset Email' : 'Sign In'}
+              <Button type="submit" variant="primary" loading={loading} className="w-100">
+                {showForgotPassword ? 'Send reset link' : 'Sign in'}
+              </Button>
+
+              <div className="auth-links">
+                <Button variant="quiet" size="sm" onClick={() => switchMode(!showForgotPassword)}>
+                  {showForgotPassword ? 'Back to sign in' : 'Forgot password?'}
                 </Button>
               </div>
             </form>
-
-            <div className="text-center mt-3">
-              {!showForgotPassword && (
-                <button
-                  onClick={() => setShowForgotPassword(true)}
-                  className="btn btn-link btn-sm"
-                >
-                  Forgot Password?
-                </button>
-              )}
-              
-              {showForgotPassword && (
-                <button
-                  onClick={() => setShowForgotPassword(false)}
-                  className="btn btn-link"
-                >
-                  Back to Sign In
-                </button>
-              )}
-            </div>
-          </Card>
+          </div>
         </div>
       </div>
     </div>

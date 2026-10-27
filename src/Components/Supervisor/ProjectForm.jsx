@@ -1,13 +1,10 @@
 import { useState } from 'react';
 import { supabase } from '../../supabaseClient';
-import Card from '../Common/Card';
+import Modal from '../Common/Modal';
 import Button from '../Common/Button';
 import InputField from '../Common/InputField';
 
 const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) => {
-  // Debug: Log what serial number we're getting
-  console.log('ProjectForm props:', { project, nextSerialNumber });
-  
   const [formData, setFormData] = useState({
     serial_number: project?.serial_number || nextSerialNumber || '',
     address: project?.address || '',
@@ -130,15 +127,27 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
   };
 
   return (
-    <Card title={project ? `Edit Project #${project.serial_number}` : 'Add New Project'}>
-      <form onSubmit={handleSubmit}>
+    <Modal
+      title={project ? `Edit project #${project.serial_number}` : 'Add project'}
+      size="lg"
+      onClose={loading ? undefined : onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button type="submit" form="project-form" loading={loading}>
+            {project ? 'Save changes' : 'Create project'}
+          </Button>
+        </>
+      }
+    >
+      <form id="project-form" onSubmit={handleSubmit}>
         <div className="row">
-          {/* Basic Information */}
+          {/* Basic information */}
           <div className="col-md-6">
-            <h6 className="text-muted mb-3">Basic Information</h6>
+            <h6 className="form-section-title">Basic information</h6>
             
             <InputField
-              label="Serial Number"
+              label="Serial number"
               id="serial_number"
               type="number"
               value={formData.serial_number}
@@ -148,7 +157,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
 
             <div className="mb-3">
               <label className="form-label">
-                Address (Project Title) <span className="text-danger">*</span>
+                Address (project title) <span className="text-danger">*</span>
               </label>
               <textarea
                 className="form-control"
@@ -160,7 +169,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             </div>
             
             <InputField
-              label="Contact Person"
+              label="Contact person"
               id="contact_person"
               value={formData.contact_person}
               onChange={(val) => handleChange('contact_person', val)}
@@ -168,7 +177,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             />
 
             <InputField
-              label="Company Name"
+              label="Company name"
               id="company_name"
               value={formData.company_name}
               onChange={(val) => handleChange('company_name', val)}
@@ -194,7 +203,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
 
           {/* Project Details */}
           <div className="col-md-6">
-            <h6 className="text-muted mb-3">Project Details</h6>
+            <h6 className="form-section-title">Project details</h6>
 
             <div className="mb-3">
               <label className="form-label">
@@ -237,7 +246,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             </div>
 
             <div className="mb-3">
-              <label className="form-label">Project Lead</label>
+              <label className="form-label">Project lead</label>
               <select
                 className="form-select"
                 value={formData.project_lead_id}
@@ -253,7 +262,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             </div>
 
             <div className="mb-3">
-              <label className="form-label">Job Description</label>
+              <label className="form-label">Job description</label>
               <textarea
                 className="form-control"
                 rows={3}
@@ -277,11 +286,11 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
         {/* Financial Information */}
         <div className="row mt-3">
           <div className="col-12">
-            <h6 className="text-muted mb-3">Financial Information</h6>
+            <h6 className="form-section-title">Financial information</h6>
           </div>
 
           <div className="col-md-4">
-            <h6 className="fw-bold">Quotation</h6>
+            <h6 className="form-section-title">Quotation</h6>
             <InputField
               label="Amount"
               id="quotation_amount"
@@ -301,7 +310,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
           </div>
 
           <div className="col-md-4">
-            <h6 className="fw-bold">Invoice</h6>
+            <h6 className="form-section-title">Invoice</h6>
             <InputField
               label="Amount"
               id="invoice_amount"
@@ -321,7 +330,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
           </div>
 
           <div className="col-md-4">
-            <h6 className="fw-bold">Payment</h6>
+            <h6 className="form-section-title">Payment</h6>
             <InputField
               label="Amount"
               id="payment_amount"
@@ -346,17 +355,8 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             {error}
           </div>
         )}
-
-        <div className="d-flex gap-2 mt-3">
-          <Button type="submit" variant="primary" disabled={loading}>
-            {loading ? 'Saving...' : project ? 'Update Project' : 'Create Project'}
-          </Button>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
       </form>
-    </Card>
+    </Modal>
   );
 };
 

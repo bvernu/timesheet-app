@@ -5,9 +5,9 @@ import EmployeeDashboard from './Components/Employee/EmployeeDashboard';
 import ManagerDashboard from './Components/Manager/ManagerDashboard';
 import SupervisorDashboard from './Components/Supervisor/SupervisorDashboard';
 import ChangePasswordModal from './ChangePasswordModal';
+import UserMenu from './Components/Common/UserMenu';
 import BrandLogo from './tenant/BrandLogo';
 import { useTenant } from './tenant/TenantContext';
-import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 
 function App() {
@@ -77,7 +77,7 @@ function App() {
   if (loading) {
     return (
       <div className="min-vh-100 d-flex align-items-center justify-content-center">
-        <div className="spinner-border text-primary" role="status">
+        <div className="spinner-border text-secondary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
       </div>
@@ -92,7 +92,7 @@ function App() {
     return (
       <div className="min-vh-100 d-flex align-items-center justify-content-center">
         <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
+          <div className="spinner-border text-secondary mb-3" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
           <p className="text-muted">Setting up your profile...</p>
@@ -102,42 +102,25 @@ function App() {
   }
 
   return (
-    <div className="min-vh-100 bg-light">
-      <nav className="navbar navbar-expand-lg navbar-light" style={{ backgroundColor: 'var(--brand-navbar-bg)', borderBottom: '3px solid var(--brand-primary)' }}>
-        <div className="container-fluid">
-          <span className="navbar-brand mb-0 h1">
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="topbar-brand">
             <BrandLogo />
-          </span>
-          <div className="d-flex align-items-center gap-2">
-            <span className="me-3" style={{ color: 'var(--brand-navbar-text)', fontWeight: '500' }}>
-              {profile.full_name}
-            </span>
-            <button 
-              onClick={() => setShowChangePassword(true)}
-              className="btn btn-sm btn-outline-secondary"
-            >
-              Change Password
-            </button>
-            <button 
-              onClick={handleSignOut}
-              className="btn btn-sm"
-              style={{ 
-                backgroundColor: 'var(--brand-primary)',
-                color: 'var(--brand-primary-contrast)',
-                border: 'none'
-              }}
-            >
-              Sign Out
-            </button>
           </div>
+          <UserMenu
+            name={profile.full_name}
+            onChangePassword={() => setShowChangePassword(true)}
+            onSignOut={handleSignOut}
+          />
         </div>
-      </nav>
+      </header>
 
       {showChangePassword && (
         <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
       )}
 
-      <div className="container-fluid py-4">
+      <main className="page-container">
         {profile.role === 'supervisor' ? (
           <SupervisorDashboard profile={profile} />
         ) : profile.role === 'manager' ? (
@@ -145,7 +128,7 @@ function App() {
         ) : (
           <EmployeeDashboard profile={profile} />
         )}
-      </div>
+      </main>
     </div>
   );
 }

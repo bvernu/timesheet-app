@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from './supabaseClient';
 import Button from './Components/Common/Button';
+import Modal from './Components/Common/Modal';
 import InputField from './Components/Common/InputField';
 
 const ChangePasswordModal = ({ onClose }) => {
@@ -48,69 +49,51 @@ const ChangePasswordModal = ({ onClose }) => {
   };
 
   return (
-    <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <div className="modal-dialog">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h5 className="modal-title">Change Password</h5>
-            <button 
-              type="button" 
-              className="btn-close" 
-              onClick={onClose}
-            ></button>
+    <Modal
+      title="Change password"
+      size="sm"
+      onClose={loading ? undefined : onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button type="submit" form="change-password-form" loading={loading}>Change password</Button>
+        </>
+      }
+    >
+      <form id="change-password-form" onSubmit={handleChangePassword}>
+        <InputField
+          label="New password"
+          id="newPassword"
+          type="password"
+          value={newPassword}
+          onChange={setNewPassword}
+          autoComplete="new-password"
+          required
+        />
+
+        <InputField
+          label="Confirm new password"
+          id="confirmPassword"
+          type="password"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          autoComplete="new-password"
+          required
+        />
+
+        {error && (
+          <div className="alert alert-danger mb-0" role="alert">
+            {error}
           </div>
-          <form onSubmit={handleChangePassword}>
-            <div className="modal-body">
-              <InputField
-                label="New Password"
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={setNewPassword}
-                required
-              />
+        )}
 
-              <InputField
-                label="Confirm New Password"
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={setConfirmPassword}
-                required
-              />
-
-              {error && (
-                <div className="alert alert-danger" role="alert">
-                  {error}
-                </div>
-              )}
-
-              {success && (
-                <div className="alert alert-success" role="alert">
-                  {success}
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <Button 
-                type="button"
-                variant="secondary" 
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit"
-                variant="primary" 
-                disabled={loading}
-              >
-                {loading ? 'Changing...' : 'Change Password'}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+        {success && (
+          <div className="alert alert-success mb-0" role="status">
+            {success}
+          </div>
+        )}
+      </form>
+    </Modal>
   );
 };
 

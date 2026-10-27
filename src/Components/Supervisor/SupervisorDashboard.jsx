@@ -11,11 +11,10 @@ const SupervisorDashboard = ({ profile }) => {
   const [employees, setEmployees] = useState([]);
   const [projects, setProjects] = useState([]);
   const [timeEntries, setTimeEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadEmployees();
-    loadProjects();
-    loadAllTimeEntries();
+    Promise.all([loadEmployees(), loadProjects(), loadAllTimeEntries()]).finally(() => setLoading(false));
   }, []);
 
   const loadEmployees = async () => {
@@ -62,41 +61,27 @@ const SupervisorDashboard = ({ profile }) => {
   const tabs = [
     {
       id: 'my-timesheet',
-      label: 'My Timesheet',
+      label: 'My timesheet',
       content: <EmployeeDashboard profile={profile} />
     },
     {
       id: 'timesheets',
-      label: 'All Timesheets',
-      content: <TimesheetsTab timeEntries={timeEntries} employees={employees} />
+      label: 'All timesheets',
+      content: <TimesheetsTab timeEntries={timeEntries} employees={employees} loading={loading} />
     },
     {
       id: 'employees',
       label: 'Employees',
-      content: <EmployeesTab employees={employees} currentUser={profile} onRefresh={loadEmployees} />
+      content: <EmployeesTab employees={employees} currentUser={profile} onRefresh={loadEmployees} loading={loading} />
     },
     {
       id: 'projects',
       label: 'Projects',
-      content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} />
+      content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} loading={loading} />
     }
   ];
 
-  return (
-    <div className="container-fluid">
-      <div className="row mb-4">
-        <div className="col">
-          <h2>Supervisor Dashboard</h2>
-        </div>
-      </div>
-
-      <div className="row">
-        <div className="col">
-          <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-        </div>
-      </div>
-    </div>
-  );
+  return <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />;
 };
 
 export default SupervisorDashboard;

@@ -1,44 +1,50 @@
 import { useState } from 'react';
 import { supabase } from '../../supabaseClient';
-import Card from '../Common/Card';
+import Modal from '../Common/Modal';
 import Button from '../Common/Button';
+import { formatDate } from '../../utils/format';
+import { useToast } from '../Common/Toast';
+
+// <input type="datetime-local"> wants local time as "YYYY-MM-DDTHH:mm"
+const toLocalInput = (iso) =>
+  iso ? new Date(new Date(iso).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
 
 const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => {
-  if (editingEntry?.approved) {
-    return (
-      <Card title="Can not edit - Entry has been approved">
-        <div className="alert alert-warning">
-          <strong>This timesheet entry has been approved and cannot be edited</strong>
-          <p className="mb-0 mt-2">
-            Approved on: {new Date(editingEntry.approved_at).toLocaleDateString()}
-          </p>
-        </div>
-        <Button onCLick={onClose} variant="secondary">Close</Button>
-      </Card>
-    );
-  }
-  
+  const toast = useToast();
   const [projectId, setProjectId] = useState(editingEntry?.project_id || '');
-  const [clockIn, setClockIn] = useState(
-    editingEntry?.clock_in 
-      ? new Date(new Date(editingEntry.clock_in).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-      : ''
-  );
-  const [clockOut, setClockOut] = useState(
-    editingEntry?.clock_out 
-      ? new Date(new Date(editingEntry.clock_out).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-      : ''
-  );
+  const [clockIn, setClockIn] = useState(toLocalInput(editingEntry?.clock_in));
+  const [clockOut, setClockOut] = useState(toLocalInput(editingEntry?.clock_out));
   const [notes, setNotes] = useState(editingEntry?.notes || '');
   const [mileage, setMileage] = useState(editingEntry?.mileage || '');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Approved entries are locked
+  if (editingEntry?.approved) {
+    return (
+      <Modal
+        title="This entry can't be edited"
+        onClose={onClose}
+        size="sm"
+        footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+      >
+        <p className="mb-0">
+          This entry was approved{editingEntry.approved_at ? ` on ${formatDate(editingEntry.approved_at)}` : ''} and is now locked.
+        </p>
+      </Modal>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
     if (!projectId || !clockIn) {
-      setError('Project and Clock In time are required');
+      setError('Project and clock-in time are required.');
+      return;
+    }
+    if (clockOut && new Date(clockOut) <= new Date(clockIn)) {
+      setError('Clock out must be after clock in.');
       return;
     }
 
@@ -51,36 +57,41 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
       mileage: mileage ? parseFloat(mileage) : null,
     };
 
+    setSaving(true);
     try {
-      if (editingEntry) {
-        const { error } = await supabase
-          .from('time_entries')
-          .update(entryData)
-          .eq('id', editingEntry.id);
-        
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('time_entries')
-          .insert([entryData]);
-        
-        if (error) throw error;
-      }
+      const { error } = editingEntry
+        ? await supabase.from('time_entries').update(entryData).eq('id', editingEntry.id)
+        : await supabase.from('time_entries').insert([entryData]);
+      if (error) throw error;
 
+      toast.success(editingEntry ? 'Time entry updated' : 'Time entry added');
       onSave();
-    } catch (error) {
-      setError(error.message);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
     }
   };
 
   return (
-    <Card title={editingEntry ? 'Edit Time Entry' : 'Add Time Entry'}>
-      <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <label className="form-label">
-            Project <span className="text-danger">*</span>
+    <Modal
+      title={editingEntry ? 'Edit time entry' : 'Add time entry'}
+      onClose={saving ? undefined : onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" form="time-entry-form" loading={saving}>
+            {editingEntry ? 'Save changes' : 'Add entry'}
+          </Button>
+        </>
+      }
+    >
+      <form id="time-entry-form" onSubmit={handleSubmit}>
+        <div className="field">
+          <label className="form-label" htmlFor="te-project">
+            Project<span className="required-mark" aria-hidden="true"> *</span>
           </label>
           <select
+            id="te-project"
             className="form-select"
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
@@ -97,11 +108,12 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
 
         <div className="row">
           <div className="col-md-6">
-            <div className="mb-3">
-              <label className="form-label">
-                Clock In <span className="text-danger">*</span>
+            <div className="field">
+              <label className="form-label" htmlFor="te-in">
+                Clock in<span className="required-mark" aria-hidden="true"> *</span>
               </label>
               <input
+                id="te-in"
                 type="datetime-local"
                 className="form-control"
                 value={clockIn}
@@ -110,11 +122,11 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
               />
             </div>
           </div>
-
           <div className="col-md-6">
-            <div className="mb-3">
-              <label className="form-label">Clock Out</label>
+            <div className="field">
+              <label className="form-label" htmlFor="te-out">Clock out</label>
               <input
+                id="te-out"
                 type="datetime-local"
                 className="form-control"
                 value={clockOut}
@@ -124,21 +136,14 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
           </div>
         </div>
 
-        <div className="mb-3">
-          <label className="form-label">Notes</label>
-          <textarea
-            className="form-control"
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
-
-        <div className="mb-3">
-          <label className="form-label">Mileage (km)</label>
+        <div className="field">
+          <label className="form-label" htmlFor="te-mileage">Mileage (km)</label>
           <input
+            id="te-mileage"
             type="number"
             step="0.1"
+            min="0"
+            inputMode="decimal"
             className="form-control"
             value={mileage}
             onChange={(e) => setMileage(e.target.value)}
@@ -146,22 +151,24 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
           />
         </div>
 
+        <div className="field">
+          <label className="form-label" htmlFor="te-notes">Notes</label>
+          <textarea
+            id="te-notes"
+            className="form-control"
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+
         {error && (
-          <div className="alert alert-danger" role="alert">
+          <div className="alert alert-danger mb-0" role="alert">
             {error}
           </div>
         )}
-
-        <div className="d-flex gap-2">
-          <Button type="submit" variant="primary">
-            {editingEntry ? 'Update' : 'Save'}
-          </Button>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
       </form>
-    </Card>
+    </Modal>
   );
 };
 

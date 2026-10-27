@@ -3,25 +3,40 @@ import { supabase } from '../../supabaseClient';
 import Card from '../Common/Card';
 import Button from '../Common/Button';
 import InputField from '../Common/InputField';
+import Modal from '../Common/Modal';
+import PageHeader from '../Common/PageHeader';
+import RowMenu from '../Common/RowMenu';
+import Skeleton from '../Common/Skeleton';
+import ConfirmDialog from '../Common/ConfirmDialog';
+import { RoleBadge } from '../Common/StatusBadge';
+import { useToast } from '../Common/Toast';
 import EmployeeDetailsView from './EmployeeDetailsView';
 
-const UserManagement = ({ employees, onRefresh, currentUser }) => {
+const EMPTY_FORM = { email: '', full_name: '', password: '' };
+
+const UserManagement = ({ employees, onRefresh, currentUser, loading: listLoading = false }) => {
+  const toast = useToast();
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(null);
+  const [changingRole, setChangingRole] = useState(null); // { employee, role }
   const [viewingEmployee, setViewingEmployee] = useState(null);
-  const [formData, setFormData] = useState({
-    email: '',
-    full_name: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [created, setCreated] = useState(null); // { email, password } after a successful create
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const closeAddDialog = () => {
+    setShowAddEmployee(false);
+    setFormData(EMPTY_FORM);
+    setCreated(null);
+    setCopied(false);
+    setError('');
+  };
 
   const handleCreateEmployee = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
@@ -44,16 +59,9 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
         throw new Error(message);
       }
 
-      setSuccess(`Employee account created! They can sign in now with ${formData.email} and the temporary password: ${formData.password}`);
-
-      setFormData({ email: '', full_name: '', password: '' });
-      setShowAddEmployee(false);
-
-      setTimeout(() => {
-        setSuccess('');
-        onRefresh();
-      }, 3000);
-
+      setCreated({ email: formData.email, password: formData.password });
+      toast.success('Employee account created');
+      onRefresh();
     } catch (err) {
       setError(err.message || 'Failed to create employee');
     } finally {
@@ -61,9 +69,16 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
     }
   };
 
+  const copyCredentials = async () => {
+    try {
+      await navigator.clipboard.writeText(`Email: ${created.email}\nTemporary password: ${created.password}`);
+      setCopied(true);
+    } catch {
+      toast.error("Couldn't copy automatically. Please select and copy the details above.");
+    }
+  };
+
   const handleSendPasswordReset = async (email) => {
-    setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
@@ -73,226 +88,166 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
 
       if (error) throw error;
 
-      setSuccess(`Password reset email sent to ${email}`);
+      toast.success(`Password reset email sent to ${email}`);
       setShowResetPassword(null);
-      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to send password reset email');
+      toast.error(err.message || 'Failed to send password reset email');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleRole = async (employeeId, currentRole) => {
-  setError('');
-  setSuccess('');
+  const handleChangeRole = async () => {
+    const { employee, role } = changingRole;
+    setLoading(true);
 
-  const getNextRole = (role) => {
-    switch (role) {
-      case 'employee':
-        return 'supervisor';
-      case 'supervisor':
-        return 'manager';
-      case 'manager':
-      default:
-        return 'employee';
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ role })
+        .eq('id', employee.id)
+        .select();
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('No rows updated. Check RLS policies.');
+      }
+
+      toast.success(`${employee.full_name} is now ${role === 'employee' ? 'an employee' : `a ${role}`}`);
+      setChangingRole(null);
+      onRefresh();
+    } catch (err) {
+      toast.error(`Failed to update role: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
-
-  const newRole = getNextRole(currentRole);
-
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', employeeId)
-      .select();
-
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      throw new Error('No rows updated. Check RLS policies.');
-    }
-
-    setSuccess(`Role updated to ${newRole} successfully!`);
-    setTimeout(() => setSuccess(''), 2000);
-    onRefresh();
-  } catch (err) {
-    setError(`Failed to update role: ${err.message}`);
-    setTimeout(() => setError(''), 5000);
-  }
-};
-
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-    let password = '';
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setFormData(prev => ({ ...prev, password }));
+    const values = new Uint32Array(12);
+    crypto.getRandomValues(values);
+    const password = Array.from(values, (v) => chars.charAt(v % chars.length)).join('');
+    setFormData((prev) => ({ ...prev, password }));
   };
+
+  const visibleEmployees = employees.filter((emp) => emp.role !== 'deleted');
 
   return (
     <div>
-      <div className="row mb-3">
-        <div className="col">
-          <div className="d-flex justify-content-between align-items-center">
-            <h4>Employee Management</h4>
-            <Button onClick={() => setShowAddEmployee(true)} variant="primary">
-              Create New Employee
-            </Button>
+      <PageHeader
+        title="Employees"
+        actions={<Button onClick={() => setShowAddEmployee(true)}>Add employee</Button>}
+      />
+
+      <Card flush>
+        {listLoading ? (
+          <Skeleton rows={4} />
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-hover table-stack">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleEmployees.map((employee) => (
+                  <tr key={employee.id} className="is-clickable" onClick={() => setViewingEmployee(employee)}>
+                    <td className="cell-title cell-strong">{employee.full_name}</td>
+                    <td data-label="Email">{employee.email}</td>
+                    <td data-label="Role"><RoleBadge role={employee.role} /></td>
+                    <td className="cell-actions" data-label="" onClick={(e) => e.stopPropagation()}>
+                      <RowMenu
+                        label={`Actions for ${employee.full_name}`}
+                        items={[
+                          { label: 'View details', onClick: () => setViewingEmployee(employee) },
+                          { label: 'Change role', hidden: employee.id === currentUser.id, onClick: () => setChangingRole({ employee, role: employee.role }) },
+                          { label: 'Send password reset', onClick: () => setShowResetPassword(employee) },
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-      </div>
-
-      {success && (
-        <div className="alert alert-success alert-dismissible fade show" role="alert">
-          {success}
-          <button type="button" className="btn-close" onClick={() => setSuccess('')}></button>
-        </div>
-      )}
-
-      {error && (
-        <div className="alert alert-danger alert-dismissible fade show" role="alert">
-          {error}
-          <button type="button" className="btn-close" onClick={() => setError('')}></button>
-        </div>
-      )}
+        )}
+      </Card>
 
       {showAddEmployee && (
-        <Card title="Create New Employee" className="mb-4">
-          <form onSubmit={handleCreateEmployee}>
-            <div className="row">
-              <div className="col-md-6">
-                <InputField
-                  label="Full Name"
-                  id="full_name"
-                  value={formData.full_name}
-                  onChange={(val) => setFormData(prev => ({ ...prev, full_name: val }))}
-                  required
-                />
+        created ? (
+          <Modal
+            title="Employee created"
+            onClose={closeAddDialog}
+            footer={
+              <>
+                <Button variant="secondary" onClick={copyCredentials}>{copied ? 'Copied ✓' : 'Copy details'}</Button>
+                <Button onClick={closeAddDialog}>Done</Button>
+              </>
+            }
+          >
+            <p>They can sign in right away with these details. Share the password securely, as it won&apos;t be shown again.</p>
+            <dl className="detail-list">
+              <dt>Email</dt><dd>{created.email}</dd>
+              <dt>Temporary password</dt><dd><code>{created.password}</code></dd>
+            </dl>
+          </Modal>
+        ) : (
+          <Modal
+            title="Add employee"
+            onClose={loading ? undefined : closeAddDialog}
+            footer={
+              <>
+                <Button variant="secondary" onClick={closeAddDialog} disabled={loading}>Cancel</Button>
+                <Button type="submit" form="add-employee-form" loading={loading}>Create employee</Button>
+              </>
+            }
+          >
+            <form id="add-employee-form" onSubmit={handleCreateEmployee}>
+              <InputField
+                label="Full name"
+                id="full_name"
+                value={formData.full_name}
+                onChange={(val) => setFormData((prev) => ({ ...prev, full_name: val }))}
+                required
+              />
+              <InputField
+                label="Email"
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(val) => setFormData((prev) => ({ ...prev, email: val }))}
+                required
+              />
+              <div className="field">
+                <label htmlFor="password" className="form-label">
+                  Temporary password<span className="required-mark" aria-hidden="true"> *</span>
+                </label>
+                <div className="d-flex gap-2">
+                  <input
+                    id="password"
+                    type="text"
+                    className="form-control"
+                    value={formData.password}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                    minLength={8}
+                    autoComplete="off"
+                    required
+                  />
+                  <Button variant="secondary" onClick={generatePassword}>Generate</Button>
+                </div>
+                <div className="field-help">At least 8 characters. The employee can change it after signing in.</div>
               </div>
-              <div className="col-md-6">
-                <InputField
-                  label="Email"
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(val) => setFormData(prev => ({ ...prev, email: val }))}
-                  required
-                />
-              </div>
-            </div>
 
-            <div className="row">
-              <div className="col-md-8">
-                <InputField
-                  label="Temporary Password"
-                  id="password"
-                  type="text"
-                  value={formData.password}
-                  onChange={(val) => setFormData(prev => ({ ...prev, password: val }))}
-                  required
-                />
-                <small className="text-muted">
-                  Employee will be able to change this password after first login
-                </small>
-              </div>
-              <div className="col-md-4 d-flex align-items-end">
-                <Button 
-                  type="button" 
-                  onClick={generatePassword} 
-                  variant="secondary"
-                  className="mb-3"
-                >
-                  Generate Password
-                </Button>
-              </div>
-            </div>
-
-            <div className="d-flex gap-2 mt-3">
-              <Button type="submit" variant="primary" disabled={loading}>
-                {loading ? 'Creating...' : 'Create Employee'}
-              </Button>
-              <Button 
-                type="button" 
-                variant="secondary" 
-                onClick={() => {
-                  setShowAddEmployee(false);
-                  setFormData({ email: '', full_name: '', password: '' });
-                  setError('');
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
+              {error && <div className="alert alert-danger mb-0" role="alert">{error}</div>}
+            </form>
+          </Modal>
+        )
       )}
-
-      <Card>
-        <div className="table-responsive">
-          <table className="table table-hover">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees
-                .filter(emp => emp.role !== 'deleted')
-                .map((employee) => (
-                <tr key={employee.id}>
-                  <td>{employee.full_name}</td>
-                  <td>{employee.email}</td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        employee.role === 'employee'
-                          ? 'bg-success'
-                          : employee.role === 'supervisor'
-                          ? 'bg-primary'
-                          : employee.role === 'manager'
-                          ? 'bg-warning'
-                          : 'bg-secondary'
-                      }`}
-                    >
-
-                      {employee.role}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => setViewingEmployee(employee)}
-                      className="btn btn-sm btn-outline-info me-2"
-                    >
-                      View
-                    </button>
-                    {employee.id !== currentUser.id && (
-                      <button
-                        onClick={() => handleToggleRole(employee.id, employee.role)}
-                        className="btn btn-sm btn-outline-primary me-2"
-                        title="Toggle role"
-                      >
-                        Toggle Role
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setShowResetPassword(employee)}
-                      className="btn btn-sm btn-outline-warning"
-                    >
-                      Reset Password
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
 
       {viewingEmployee && (
         <EmployeeDetailsView
@@ -300,47 +255,53 @@ const UserManagement = ({ employees, onRefresh, currentUser }) => {
           onClose={() => setViewingEmployee(null)}
           onSave={() => {
             setViewingEmployee(null);
+            toast.success('Employee details saved');
             onRefresh();
           }}
         />
       )}
 
-      {showResetPassword && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Reset Password</h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
-                  onClick={() => setShowResetPassword(null)}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <p>Send password reset email to <strong>{showResetPassword.email}</strong>?</p>
-                <p className="text-muted small">
-                  The employee will receive an email with a link to reset their password.
-                </p>
-              </div>
-              <div className="modal-footer">
-                <Button 
-                  variant="secondary" 
-                  onClick={() => setShowResetPassword(null)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  variant="primary" 
-                  onClick={() => handleSendPasswordReset(showResetPassword.email)}
-                  disabled={loading}
-                >
-                  {loading ? 'Sending...' : 'Send Reset Email'}
-                </Button>
-              </div>
-            </div>
+      {changingRole && (
+        <Modal
+          title={`Change role for ${changingRole.employee.full_name}`}
+          size="sm"
+          onClose={loading ? undefined : () => setChangingRole(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setChangingRole(null)} disabled={loading}>Cancel</Button>
+              <Button onClick={handleChangeRole} loading={loading} disabled={changingRole.role === changingRole.employee.role}>
+                Save role
+              </Button>
+            </>
+          }
+        >
+          <div className="field mb-0">
+            <label className="form-label" htmlFor="role-select">Role</label>
+            <select
+              id="role-select"
+              className="form-select"
+              value={changingRole.role}
+              onChange={(e) => setChangingRole((prev) => ({ ...prev, role: e.target.value }))}
+            >
+              <option value="employee">Employee</option>
+              <option value="manager">Manager</option>
+              <option value="supervisor">Supervisor</option>
+            </select>
+            <div className="field-help">Supervisors can approve timesheets and manage employees. Managers can manage projects.</div>
           </div>
-        </div>
+        </Modal>
+      )}
+
+      {showResetPassword && (
+        <ConfirmDialog
+          title="Send password reset email?"
+          confirmLabel="Send email"
+          busy={loading}
+          onConfirm={() => handleSendPasswordReset(showResetPassword.email)}
+          onCancel={() => setShowResetPassword(null)}
+        >
+          <p>We&apos;ll email <strong>{showResetPassword.email}</strong> a link to choose a new password.</p>
+        </ConfirmDialog>
       )}
     </div>
   );

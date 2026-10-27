@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTenant } from './TenantContext';
 
 // The company logo for the current site, falling back to the company name if there is no logo.
-const BrandLogo = ({ height = 40, className = 'me-2' }) => {
+const BrandLogo = ({ height = 36, className = '' }) => {
   const tenant = useTenant();
   const [failed, setFailed] = useState(false);
 
