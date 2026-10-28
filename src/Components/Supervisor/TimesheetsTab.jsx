@@ -8,8 +8,9 @@ import ConfirmDialog from '../Common/ConfirmDialog';
 import { EntryStatusBadge } from '../Common/StatusBadge';
 import { useToast } from '../Common/Toast';
 import { supabase } from '../../supabaseClient';
-import { downloadCsv } from '../../utils/csv';
-import { dayOffset, entryHours, formatDate, formatTime, hours, isoDate } from '../../utils/format';
+import ExpandableText from '../Common/ExpandableText';
+import { downloadXlsx } from '../../utils/xlsx';
+import { dayOffset, entryHours, formatDate, formatTime, hours, isoDate, parseLocalDate } from '../../utils/format';
 
 const defaultRange = () => {
   const today = new Date();
@@ -59,13 +60,12 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
     if (status === 'approved' && !entry.approved) return false;
     const entryDate = new Date(entry.clock_in);
     if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
+      const start = parseLocalDate(startDate); // local midnight at the start of that day
       if (entryDate < start) return false;
     }
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      const end = parseLocalDate(endDate);
+      end.setHours(23, 59, 59, 999); // ...and the very end of that same local day
       if (entryDate > end) return false;
     }
     return true;
@@ -130,37 +130,68 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
       const h = entryHours(entry).net;
       net += h;
       const key = entry.employee_id;
-      const row = byEmployee.get(key) || { name: entry.profiles?.full_name || 'Unknown', net: 0 };
+      const row = byEmployee.get(key) || { name: entry.profiles?.full_name || 'Unknown', net: 0, entries: 0 };
       row.net += h;
+      row.entries += 1;
       byEmployee.set(key, row);
     });
     return { net, byEmployee: [...byEmployee.values()].sort((a, b) => b.net - a.net) };
   }, [filteredEntries]);
 
+  // Real Excel file: dates and times are true date/time cells and the hours are numbers,
+  // so they display correctly straight away and can be sorted, filtered and summed.
   const handleExport = () => {
-    const rows = [[
-      'Employee', 'Date', 'Project', 'Clock in', 'Clock out', 'Total hours', 'Break hours', 'Net hours', 'Mileage (km)', 'Notes', 'Status',
-    ]];
-    filteredEntries.forEach((entry) => {
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const rows = filteredEntries.map((entry) => {
       const { total, brk, net, open } = entryHours(entry);
       const clockIn = new Date(entry.clock_in);
-      const clockOut = entry.clock_out ? new Date(entry.clock_out) : null;
-      const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      rows.push([
+      return [
         entry.profiles?.full_name || 'Unknown',
-        isoDate(clockIn),
+        startOfDay(clockIn),
         entry.projects?.name || 'Unknown',
-        hhmm(clockIn),
-        clockOut ? `${isoDate(clockOut)} ${hhmm(clockOut)}` : '',
-        open ? '' : hours(total),
-        open ? '' : hours(brk),
-        open ? '' : hours(net),
-        entry.mileage ?? '',
-        entry.notes || '',
+        clockIn,
+        entry.clock_out ? new Date(entry.clock_out) : null,
+        open ? null : total,
+        open ? null : brk,
+        open ? null : net,
+        entry.mileage === null || entry.mileage === undefined || entry.mileage === '' ? null : Number(entry.mileage),
+        entry.notes || null,
         entry.approved ? 'Approved' : open ? 'In progress' : 'Pending',
-      ]);
+        entry.approved_at ? startOfDay(new Date(entry.approved_at)) : null,
+      ];
     });
-    downloadCsv(`timesheets_${startDate || 'start'}_to_${endDate || 'today'}.csv`, rows);
+
+    downloadXlsx(`timesheets_${startDate || 'start'}_to_${endDate || 'today'}.xlsx`, [
+      {
+        name: 'Timesheets',
+        columns: [
+          { header: 'Employee', width: 22 },
+          { header: 'Date', width: 13, style: 'date' },
+          { header: 'Project', width: 28 },
+          { header: 'Clock in', width: 21, style: 'datetime' },
+          { header: 'Clock out', width: 21, style: 'datetime' },
+          { header: 'Total hours', width: 12, style: 'hours' },
+          { header: 'Break hours', width: 12, style: 'hours' },
+          { header: 'Net hours', width: 12, style: 'hours' },
+          { header: 'Mileage (km)', width: 13, style: 'distance' },
+          { header: 'Notes', width: 42, style: 'wrap' },
+          { header: 'Status', width: 13 },
+          { header: 'Approved on', width: 13, style: 'date' },
+        ],
+        rows,
+        totals: { label: 'Total', sum: [5, 6, 7, 8] },
+      },
+      {
+        name: 'By employee',
+        columns: [
+          { header: 'Employee', width: 26 },
+          { header: 'Entries', width: 10, style: 'count' },
+          { header: 'Net hours', width: 12, style: 'hours' },
+        ],
+        rows: totals.byEmployee.map((r) => [r.name, r.entries, r.net]),
+        totals: { label: 'Total', sum: [1, 2] },
+      },
+    ]);
   };
 
   const pendingInView = approvableEntries.length;
@@ -171,7 +202,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
         title="All timesheets"
         actions={
           <Button variant="secondary" onClick={handleExport} disabled={filteredEntries.length === 0}>
-            Export CSV
+            Export to Excel
           </Button>
         }
       />
@@ -323,7 +354,9 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                       <td className="num hide-mobile" data-label="Break (h)">{open ? '–' : hours(brk)}</td>
                       <td className="num cell-strong" data-label="Net (h)">{open ? '–' : hours(net)}</td>
                       <td className="num" data-label="Mileage">{entry.mileage ? `${entry.mileage} km` : '–'}</td>
-                      <td className="cell-notes" data-label="Notes">{entry.notes?.trim() ? entry.notes : '–'}</td>
+                      <td className="cell-notes" data-label="Notes">
+                        {entry.notes?.trim() ? <ExpandableText text={entry.notes} /> : '–'}
+                      </td>
                       <td data-label="Status">
                         <div className="cell-stack">
                           <EntryStatusBadge entry={entry} />
