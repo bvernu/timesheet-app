@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { initials } from '../../utils/format';
 
 // Top-bar account menu: name + avatar, with "Change password" and "Sign out" inside.
-const UserMenu = ({ name, onChangePassword, onSignOut }) => {
+const UserMenu = ({ name, subtitle, onChangePassword, onSignOut }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -27,7 +27,10 @@ const UserMenu = ({ name, onChangePassword, onSignOut }) => {
       </button>
       {open && (
         <div className="user-menu-list" role="menu">
-          <div className="user-menu-heading">{name}</div>
+          <div className="user-menu-heading">
+            {name}
+            {subtitle && <div className="user-menu-subtitle">{subtitle}</div>}
+          </div>
           <button type="button" role="menuitem" className="row-menu-item" onClick={() => { setOpen(false); onChangePassword(); }}>
             Change password
           </button>

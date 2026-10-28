@@ -1,9 +1,17 @@
 // Shared formatting + time maths, so every screen shows dates, times and hours the same way.
 
+// A plain date such as "2026-10-27" (from a date picker or a date column) means that calendar day
+// where the PERSON is. `new Date("2026-10-27")` would instead mean midnight UTC, which is the previous
+// evening in North America, and made "today" look like "yesterday". Parse these as LOCAL dates.
+export const parseLocalDate = (value) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(value);
+};
+
 // Dates use the viewer's own locale and always spell the month ("Oct 20, 2026" / "20 oct. 2026"),
 // so 10/11/2026 can never be misread as day-month vs month-day.
 export const formatDate = (value) =>
-  value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  value ? parseLocalDate(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
 export const formatTime = (value) =>
   value ? new Date(value).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';

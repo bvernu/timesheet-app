@@ -110,6 +110,7 @@ function App() {
           </div>
           <UserMenu
             name={profile.full_name}
+            subtitle={`${profile.role.charAt(0).toUpperCase()}${profile.role.slice(1)} · ${tenant.name}`}
             onChangePassword={() => setShowChangePassword(true)}
             onSignOut={handleSignOut}
           />
