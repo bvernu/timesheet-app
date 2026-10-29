@@ -137,6 +137,7 @@ const UserManagement = ({ employees, onRefresh, currentUser, loading: listLoadin
     <div>
       <PageHeader
         title="Employees"
+        hideTitleOnPhone
         actions={<Button onClick={() => setShowAddEmployee(true)}>Add employee</Button>}
       />
 

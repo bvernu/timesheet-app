@@ -24,7 +24,7 @@ const STATUS_OPTIONS = [
   ['cancelled', 'Cancelled'],
 ];
 
-const ProjectsTab = ({ projects, onRefresh, employees, loading = false }) => {
+const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRole = 'supervisor' }) => {
   const tenant = useTenant();
   const toast = useToast();
   const [showAddProject, setShowAddProject] = useState(false);
@@ -96,6 +96,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false }) => {
       <ProjectView
         project={viewingProject}
         employees={employees}
+        viewerRole={viewerRole}
         onRefresh={onRefresh}
         onClose={() => setViewingProject(null)}
         onEdit={() => {
@@ -108,7 +109,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false }) => {
 
   return (
     <div>
-      <PageHeader title="Projects" actions={<Button onClick={openAdd}>Add project</Button>} />
+      <PageHeader title="Projects" hideTitleOnPhone actions={<Button onClick={openAdd}>Add project</Button>} />
 
       <div className="toolbar">
         <div className="field toolbar-grow">

@@ -5,6 +5,7 @@ import Button from '../Common/Button';
 import PageHeader from '../Common/PageHeader';
 import { ProjectStatusBadge, TypeChip } from '../Common/StatusBadge';
 import { useToast } from '../Common/Toast';
+import ExpandableText from '../Common/ExpandableText';
 import { dayOffset, formatDate, formatTime, hours } from '../../utils/format';
 
 const money = (value) =>
@@ -19,7 +20,7 @@ const Detail = ({ label, children }) => (
   </>
 );
 
-const ProjectView = ({ project, onClose, onEdit, employees, onRefresh }) => {
+const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRole = 'supervisor' }) => {
   const toast = useToast();
   const [timeEntries, setTimeEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,20 +30,40 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh }) => {
   useEffect(() => {
     loadProjectTimeEntries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
+  }, [project.id, viewerRole]);
 
   const loadProjectTimeEntries = async () => {
-    const { data } = await supabase
-      .from('time_entries')
-      .select(`
-        *,
-        profiles!time_entries_employee_id_fkey (full_name)
-      `)
-      .eq('project_id', project.id)
-      .order('clock_in', { ascending: false });
+    if (viewerRole === 'supervisor') {
+      // Supervisors may read every time entry in their company, notes included
+      const { data } = await supabase
+        .from('time_entries')
+        .select(`
+          *,
+          profiles!time_entries_employee_id_fkey (full_name)
+        `)
+        .eq('project_id', project.id)
+        .order('clock_in', { ascending: false });
 
-    if (data) {
-      setTimeEntries(data);
+      if (data) {
+        setTimeEntries(data);
+      }
+    } else {
+      // Managers can't read other people's time entries directly. This database function returns only who
+      // worked on the project and when (no notes, mileage or approval details).
+      const { data } = await supabase.rpc('project_time_entries', { p_project_id: project.id });
+
+      if (data) {
+        setTimeEntries(
+          data.map((row) => ({
+            id: row.id,
+            employee_id: row.employee_id,
+            clock_in: row.clock_in,
+            clock_out: row.clock_out,
+            notes: null,
+            profiles: { full_name: row.employee_name },
+          }))
+        );
+      }
     }
     setLoading(false);
   };
@@ -218,7 +239,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh }) => {
                               {formatDate(entry.clock_in)} · {formatTime(entry.clock_in)} → {clockOut ? formatTime(clockOut) : 'Ongoing'}
                               {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
                             </div>
-                            {entry.notes && <div className="small mt-1">{entry.notes}</div>}
+                            {entry.notes?.trim() && <div className="small mt-1"><ExpandableText text={entry.notes} /></div>}
                           </div>
                           <span className="fw-medium" style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                             {entryHrs === null ? 'Ongoing' : `${hours(entryHrs)} h`}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import Card from '../Common/Card';
 import Button from '../Common/Button';
 import PageHeader from '../Common/PageHeader';
@@ -10,6 +10,7 @@ import { useToast } from '../Common/Toast';
 import { supabase } from '../../supabaseClient';
 import ExpandableText from '../Common/ExpandableText';
 import { downloadXlsx } from '../../utils/xlsx';
+import { useMediaQuery } from '../../utils/useMediaQuery';
 import { dayOffset, entryHours, formatDate, formatTime, hours, isoDate, parseLocalDate } from '../../utils/format';
 
 const defaultRange = () => {
@@ -35,6 +36,9 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [confirming, setConfirming] = useState(false);
   const [approving, setApproving] = useState(false);
+  const isPhone = useMediaQuery('(max-width: 767.98px)');
+  const [expandedIds, setExpandedIds] = useState(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Keep local state in sync if parent re-passes a new timeEntries array
   useEffect(() => {
@@ -86,6 +90,23 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const toggleExpanded = (id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Tapping anywhere on a row selects it for approval. Buttons, links, the checkbox itself, and
+  // highlighting text (to copy it) are left alone.
+  const handleRowClick = (e, entry) => {
+    if (approving || entry.approved || !entry.clock_out) return;
+    if (e.target.closest('button, a, input, label, select, textarea')) return;
+    if (window.getSelection && String(window.getSelection()).length > 0) return;
+    toggleSelectOne(entry.id);
   };
 
   const patchApproved = (ids, approvedAt, approvedBy) => {
@@ -194,12 +215,273 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
     ]);
   };
 
+  const isApprovable = (entry) => !entry.approved && !!entry.clock_out;
+
+  const entryDetails = (entry) => {
+    const { total, brk, open } = entryHours(entry);
+    const offset = dayOffset(entry.clock_in, entry.clock_out);
+    return (
+      <dl className="detail-list detail-list-compact">
+        <dt>Project</dt>
+        <dd>{entry.projects?.name || 'Unknown'}</dd>
+        <dt>Time</dt>
+        <dd>
+          {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
+          {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
+        </dd>
+        <dt>Total</dt>
+        <dd>{open ? '–' : `${hours(total)} h`}</dd>
+        <dt>Break</dt>
+        <dd>{open ? '–' : `${hours(brk)} h`}</dd>
+        <dt>Mileage</dt>
+        <dd>{entry.mileage ? `${entry.mileage} km` : '–'}</dd>
+        <dt>Status</dt>
+        <dd>
+          <EntryStatusBadge entry={entry} />
+          {entry.approved && entry.approved_at && <span className="text-muted"> · {formatDate(entry.approved_at)}</span>}
+        </dd>
+        {entry.notes?.trim() && (
+          <>
+            <dt>Notes</dt>
+            <dd><ExpandableText text={entry.notes} /></dd>
+          </>
+        )}
+      </dl>
+    );
+  };
+
+  // Phones: a compact table (select box, who/when, net hours, expand) instead of a very wide one.
+  // Tap a row to select it; tap the arrow to see the rest of that entry.
+  const renderPhoneTable = () => (
+    <div className="table-responsive">
+      <table className="table m-table">
+        <thead>
+          <tr>
+            <th className="check-cell">
+              {approvableEntries.length > 0 && (
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  aria-label={`Select all ${approvableEntries.length} pending entries`}
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+                  onChange={toggleSelectAll}
+                />
+              )}
+            </th>
+            <th>Entry</th>
+            <th className="num">Net (h)</th>
+            <th aria-label="Details"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredEntries.map((entry) => {
+            const { net, open } = entryHours(entry);
+            const approvable = isApprovable(entry);
+            const isSelected = selectedIds.has(entry.id);
+            const isExpanded = expandedIds.has(entry.id);
+            const name = entry.profiles?.full_name || 'Unknown';
+
+            return (
+              <Fragment key={entry.id}>
+                <tr
+                  className={`${isSelected ? 'is-selected' : ''}${approvable ? ' is-clickable' : ''}`}
+                  onClick={(e) => handleRowClick(e, entry)}
+                >
+                  <td className="check-cell">
+                    {approvable && (
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        aria-label={`Select entry by ${name} on ${formatDate(entry.clock_in)}`}
+                        checked={isSelected}
+                        disabled={approving}
+                        onChange={() => toggleSelectOne(entry.id)}
+                      />
+                    )}
+                  </td>
+                  <td>
+                    <div className="cell-strong">{name}</div>
+                    <div className="cell-sub">
+                      {formatDate(entry.clock_in)}
+                      {(entry.approved || open) && <span className="m-status"><EntryStatusBadge entry={entry} /></span>}
+                    </div>
+                  </td>
+                  <td className="num cell-strong">{open ? '–' : hours(net)}</td>
+                  <td className="expand-cell">
+                    <button
+                      type="button"
+                      className="chevron-button"
+                      aria-expanded={isExpanded}
+                      aria-label={`${isExpanded ? 'Hide' : 'Show'} details for ${name} on ${formatDate(entry.clock_in)}`}
+                      onClick={() => toggleExpanded(entry.id)}
+                    >
+                      <span aria-hidden="true">▾</span>
+                    </button>
+                  </td>
+                </tr>
+                {isExpanded && (
+                  <tr className="detail-row">
+                    <td colSpan={4}>{entryDetails(entry)}</td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={2}>Total net hours</td>
+            <td className="num">{hours(totals.net)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+
+  const renderDesktopTable = () => (
+    <div className="table-responsive">
+      <table className="table table-hover">
+        <thead>
+          <tr>
+            <th className="check-cell">
+              {approvableEntries.length > 0 && (
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  aria-label={`Select all ${approvableEntries.length} pending entries`}
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+                  onChange={toggleSelectAll}
+                />
+              )}
+            </th>
+            <th>Employee</th>
+            <th>Date</th>
+            <th>Project</th>
+            <th>Time</th>
+            <th className="num">Total (h)</th>
+            <th className="num">Break (h)</th>
+            <th className="num">Net (h)</th>
+            <th className="num">Mileage</th>
+            <th>Notes</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredEntries.map((entry) => {
+            const { total, brk, net, open } = entryHours(entry);
+            const offset = dayOffset(entry.clock_in, entry.clock_out);
+            const approvable = isApprovable(entry);
+            const isSelected = selectedIds.has(entry.id);
+
+            return (
+              <tr
+                key={entry.id}
+                className={`${isSelected ? 'is-selected' : ''}${approvable ? ' is-clickable' : ''}`}
+                onClick={(e) => handleRowClick(e, entry)}
+              >
+                <td className="check-cell">
+                  {approvable && (
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      aria-label={`Select entry by ${entry.profiles?.full_name || 'employee'} on ${formatDate(entry.clock_in)}`}
+                      checked={isSelected}
+                      disabled={approving}
+                      onChange={() => toggleSelectOne(entry.id)}
+                    />
+                  )}
+                </td>
+                <td className="cell-strong nowrap">{entry.profiles?.full_name || 'Unknown'}</td>
+                <td className="nowrap">{formatDate(entry.clock_in)}</td>
+                <td className="nowrap">{entry.projects?.name || 'Unknown'}</td>
+                <td className="nowrap">
+                  {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
+                  {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
+                </td>
+                <td className="num">{open ? '–' : hours(total)}</td>
+                <td className="num">{open ? '–' : hours(brk)}</td>
+                <td className="num cell-strong">{open ? '–' : hours(net)}</td>
+                <td className="num">{entry.mileage ? `${entry.mileage} km` : '–'}</td>
+                <td className="cell-notes">
+                  {entry.notes?.trim() ? <ExpandableText text={entry.notes} /> : '–'}
+                </td>
+                <td>
+                  <div className="cell-stack">
+                    <EntryStatusBadge entry={entry} />
+                    {entry.approved && entry.approved_at && (
+                      <span className="cell-sub">{formatDate(entry.approved_at)}</span>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={7} className="num">Total net hours</td>
+            <td className="num">{hours(totals.net)}</td>
+            <td colSpan={3}></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+
   const pendingInView = approvableEntries.length;
+
+  const dateFields = (
+    <>
+      <div className="field toolbar-half">
+        <label className="form-label" htmlFor="ts-from">From</label>
+        <input id="ts-from" type="date" className="form-control" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      </div>
+      <div className="field toolbar-half">
+        <label className="form-label" htmlFor="ts-to">To</label>
+        <input id="ts-to" type="date" className="form-control" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+      </div>
+    </>
+  );
+
+  const employeeField = (
+    <div className="field">
+      <label className="form-label" htmlFor="ts-employee">Employee</label>
+      <select id="ts-employee" className="form-select" value={selectedEmployee} onChange={(e) => setSelectedEmployee(e.target.value)}>
+        <option value="all">All employees</option>
+        {employees.map((employee) => (
+          <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const statusSwitch = (
+    <div className="segmented" role="group" aria-label="Status">
+      {STATUS_OPTIONS.map((opt) => (
+        <button
+          key={opt.id}
+          type="button"
+          className={status === opt.id ? 'active' : ''}
+          aria-pressed={status === opt.id}
+          onClick={() => setStatus(opt.id)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const employeeName = selectedEmployee === 'all' ? 'All employees' : employees.find((e) => e.id === selectedEmployee)?.full_name || 'Employee';
+  const filterSummary = `${startDate ? formatDate(startDate) : 'Start'} – ${endDate ? formatDate(endDate) : 'Today'} · ${employeeName}`;
 
   return (
     <div>
       <PageHeader
         title="All timesheets"
+        hideTitleOnPhone
         actions={
           <Button variant="secondary" onClick={handleExport} disabled={filteredEntries.length === 0}>
             Export to Excel
@@ -207,76 +489,74 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
         }
       />
 
-      <div className="toolbar">
-        <div className="field toolbar-half">
-          <label className="form-label" htmlFor="ts-from">From</label>
-          <input id="ts-from" type="date" className="form-control" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      {isPhone ? (
+        <div className="phone-filters">
+          {statusSwitch}
+          <button
+            type="button"
+            className="filter-summary"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((o) => !o)}
+          >
+            <span className="filter-summary-label">Filters</span>
+            <span className="filter-summary-text">{filterSummary}</span>
+            <span className="filter-summary-caret" aria-hidden="true">{filtersOpen ? '▴' : '▾'}</span>
+          </button>
+          {filtersOpen && (
+            <div className="toolbar filter-panel">
+              {dateFields}
+              {employeeField}
+              {!isDefaultFilter && <Button variant="quiet" onClick={resetFilters}>Reset filters</Button>}
+            </div>
+          )}
         </div>
-        <div className="field toolbar-half">
-          <label className="form-label" htmlFor="ts-to">To</label>
-          <input id="ts-to" type="date" className="form-control" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="form-label" htmlFor="ts-employee">Employee</label>
-          <select id="ts-employee" className="form-select" value={selectedEmployee} onChange={(e) => setSelectedEmployee(e.target.value)}>
-            <option value="all">All employees</option>
-            {employees.map((employee) => (
-              <option key={employee.id} value={employee.id}>{employee.full_name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <span className="form-label d-block" id="ts-status-label">Status</span>
-          <div className="segmented" role="group" aria-labelledby="ts-status-label">
-            {STATUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                className={status === opt.id ? 'active' : ''}
-                aria-pressed={status === opt.id}
-                onClick={() => setStatus(opt.id)}
-              >
-                {opt.label}
-              </button>
-            ))}
+      ) : (
+        <div className="toolbar">
+          {dateFields}
+          {employeeField}
+          <div className="field">
+            <span className="form-label d-block" id="ts-status-label">Status</span>
+            {statusSwitch}
           </div>
-        </div>
-        {!isDefaultFilter && (
-          <div className="field toolbar-end">
-            <Button variant="quiet" onClick={resetFilters}>Reset filters</Button>
-          </div>
-        )}
-      </div>
-
-      <div className="stat-row">
-        <div className="stat">
-          <div className="stat-label">Net hours</div>
-          <div className="stat-value">{hours(totals.net)}<span className="stat-unit">h</span></div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Entries</div>
-          <div className="stat-value">{filteredEntries.length}</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Ready to approve</div>
-          <div className="stat-value">{pendingInView}</div>
-        </div>
-      </div>
-
-      {totals.byEmployee.length > 1 && (
-        <div className="chip-row" aria-label="Net hours by employee">
-          {totals.byEmployee.map((row) => (
-            <span key={row.name} className="chip">{row.name} <strong>{hours(row.net)} h</strong></span>
-          ))}
+          {!isDefaultFilter && (
+            <div className="field toolbar-end">
+              <Button variant="quiet" onClick={resetFilters}>Reset filters</Button>
+            </div>
+          )}
         </div>
       )}
 
-      {approvableEntries.length > 0 && (
-        <div className="mobile-only-block mb-2">
-          <Button variant="secondary" size="sm" onClick={toggleSelectAll}>
-            {allSelected ? 'Clear selection' : `Select all ${approvableEntries.length} pending`}
-          </Button>
+      {isPhone ? (
+        <div className="stat-strip" aria-label="Summary">
+          <div><strong>{hours(totals.net)}</strong><span>net hours</span></div>
+          <div><strong>{filteredEntries.length}</strong><span>entries</span></div>
+          <div><strong>{pendingInView}</strong><span>to approve</span></div>
         </div>
+      ) : (
+        <>
+          <div className="stat-row">
+            <div className="stat">
+              <div className="stat-label">Net hours</div>
+              <div className="stat-value">{hours(totals.net)}<span className="stat-unit">h</span></div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Entries</div>
+              <div className="stat-value">{filteredEntries.length}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Ready to approve</div>
+              <div className="stat-value">{pendingInView}</div>
+            </div>
+          </div>
+
+          {totals.byEmployee.length > 1 && (
+            <div className="chip-row" aria-label="Net hours by employee">
+              {totals.byEmployee.map((row) => (
+                <span key={row.name} className="chip">{row.name} <strong>{hours(row.net)} h</strong></span>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <Card flush>
@@ -294,90 +574,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
               : 'Try a different date range or employee.'}
           </EmptyState>
         ) : (
-          <div className="table-responsive">
-            <table className="table table-hover table-stack">
-              <thead>
-                <tr>
-                  <th className="check-cell">
-                    {approvableEntries.length > 0 && (
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        aria-label={`Select all ${approvableEntries.length} pending entries`}
-                        checked={allSelected}
-                        ref={(el) => { if (el) el.indeterminate = indeterminate; }}
-                        onChange={toggleSelectAll}
-                      />
-                    )}
-                  </th>
-                  <th>Employee</th>
-                  <th>Date</th>
-                  <th>Project</th>
-                  <th>Time</th>
-                  <th className="num hide-mobile">Total (h)</th>
-                  <th className="num hide-mobile">Break (h)</th>
-                  <th className="num">Net (h)</th>
-                  <th className="num">Mileage</th>
-                  <th>Notes</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEntries.map((entry) => {
-                  const { total, brk, net, open } = entryHours(entry);
-                  const offset = dayOffset(entry.clock_in, entry.clock_out);
-                  const isApprovable = !entry.approved && !open;
-                  const isSelected = selectedIds.has(entry.id);
-
-                  return (
-                    <tr key={entry.id} className={isSelected ? 'is-selected' : ''}>
-                      <td className="check-cell" data-label="">
-                        {isApprovable && (
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
-                            aria-label={`Select entry by ${entry.profiles?.full_name || 'employee'} on ${formatDate(entry.clock_in)}`}
-                            checked={isSelected}
-                            disabled={approving}
-                            onChange={() => toggleSelectOne(entry.id)}
-                          />
-                        )}
-                      </td>
-                      <td className="cell-title cell-strong nowrap">{entry.profiles?.full_name || 'Unknown'}</td>
-                      <td className="nowrap" data-label="Date">{formatDate(entry.clock_in)}</td>
-                      <td className="nowrap" data-label="Project">{entry.projects?.name || 'Unknown'}</td>
-                      <td className="nowrap" data-label="Time">
-                        {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
-                        {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
-                      </td>
-                      <td className="num hide-mobile" data-label="Total (h)">{open ? '–' : hours(total)}</td>
-                      <td className="num hide-mobile" data-label="Break (h)">{open ? '–' : hours(brk)}</td>
-                      <td className="num cell-strong" data-label="Net (h)">{open ? '–' : hours(net)}</td>
-                      <td className="num" data-label="Mileage">{entry.mileage ? `${entry.mileage} km` : '–'}</td>
-                      <td className="cell-notes" data-label="Notes">
-                        {entry.notes?.trim() ? <ExpandableText text={entry.notes} /> : '–'}
-                      </td>
-                      <td data-label="Status">
-                        <div className="cell-stack">
-                          <EntryStatusBadge entry={entry} />
-                          {entry.approved && entry.approved_at && (
-                            <span className="cell-sub">{formatDate(entry.approved_at)}</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="hide-mobile">
-                <tr>
-                  <td colSpan={7} className="num">Total net hours</td>
-                  <td className="num">{hours(totals.net)}</td>
-                  <td colSpan={3}></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          isPhone ? renderPhoneTable() : renderDesktopTable()
         )}
       </Card>
 

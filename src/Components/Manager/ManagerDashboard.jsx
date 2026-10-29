@@ -45,7 +45,7 @@ const ManagerDashboard = ({ profile }) => {
     {
       id: 'projects',
       label: 'Projects',
-      content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} loading={loading} />
+      content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} loading={loading} viewerRole={profile.role} />
     }
   ];
 
