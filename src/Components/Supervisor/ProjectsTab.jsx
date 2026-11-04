@@ -12,6 +12,7 @@ import { useToast } from '../Common/Toast';
 import ProjectForm from './ProjectForm';
 import ProjectView from './ProjectView';
 import { useTenant } from '../../tenant/TenantContext';
+import { useMediaQuery } from '../../utils/useMediaQuery';
 
 const STATUS_OPTIONS = [
   ['in progress', 'In progress'],
@@ -26,6 +27,7 @@ const STATUS_OPTIONS = [
 
 const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRole = 'supervisor' }) => {
   const tenant = useTenant();
+  const isPhone = useMediaQuery('(max-width: 767.98px)');
   const toast = useToast();
   const [showAddProject, setShowAddProject] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
@@ -166,8 +168,41 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
               : 'Projects you create will be listed here.'}
           </EmptyState>
         ) : (
+          isPhone ? (
+            <ul className="project-cards">
+              {filteredProjects.map((project) => {
+                const isArchived = !!project.archived_at;
+                return (
+                  <li key={project.id} className="project-card">
+                    <button type="button" className="project-card-open" onClick={() => setViewingProject(project)}>
+                      <span className="project-card-main">
+                        <span className="project-card-title">{project.address}</span>
+                        <span className="project-card-sub">
+                          #{project.serial_number}{project.company_name ? ` · ${project.company_name}` : ''}
+                        </span>
+                      </span>
+                      <span className="project-card-side">
+                        <TypeChip type={project.type} />
+                        <ProjectStatusBadge status={project.status} />
+                      </span>
+                    </button>
+                    <RowMenu
+                      label={`Actions for ${project.address || 'project'}`}
+                      items={[
+                        { label: 'View', onClick: () => setViewingProject(project) },
+                        { label: 'Edit', onClick: () => setEditingProject(project) },
+                        { label: 'Archive', hidden: isArchived, onClick: () => setConfirm({ kind: 'archive', project }) },
+                        { label: 'Restore', hidden: !isArchived, onClick: () => setConfirm({ kind: 'restore', project }) },
+                        { label: 'Delete permanently', danger: true, hidden: !isArchived, onClick: () => setConfirm({ kind: 'delete', project }) },
+                      ]}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
           <div className="table-responsive">
-            <table className="table table-hover table-stack">
+            <table className="table table-hover">
               <thead>
                 <tr>
                   <th>#</th>
@@ -220,6 +255,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
               </tbody>
             </table>
           </div>
+          )
         )}
       </Card>
 

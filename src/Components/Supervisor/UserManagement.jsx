@@ -146,10 +146,10 @@ const UserManagement = ({ employees, onRefresh, currentUser, loading: listLoadin
           <Skeleton rows={4} />
         ) : (
           <div className="table-responsive">
-            <table className="table table-hover table-stack">
+            <table className="table table-hover table-scroll">
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th className="sticky-col sticky-col-0 sticky-edge">Name</th>
                   <th>Email</th>
                   <th>Role</th>
                   <th aria-label="Actions"></th>
@@ -158,7 +158,7 @@ const UserManagement = ({ employees, onRefresh, currentUser, loading: listLoadin
               <tbody>
                 {visibleEmployees.map((employee) => (
                   <tr key={employee.id} className="is-clickable" onClick={() => setViewingEmployee(employee)}>
-                    <td className="cell-title cell-strong">{employee.full_name}</td>
+                    <td className="cell-strong nowrap sticky-col sticky-col-0 sticky-edge">{employee.full_name}</td>
                     <td data-label="Email">{employee.email}</td>
                     <td data-label="Role"><RoleBadge role={employee.role} /></td>
                     <td className="cell-actions" data-label="" onClick={(e) => e.stopPropagation()}>

@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Card from '../Common/Card';
 import Button from '../Common/Button';
 import PageHeader from '../Common/PageHeader';
@@ -37,7 +37,6 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
   const [confirming, setConfirming] = useState(false);
   const [approving, setApproving] = useState(false);
   const isPhone = useMediaQuery('(max-width: 767.98px)');
-  const [expandedIds, setExpandedIds] = useState(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Keep local state in sync if parent re-passes a new timeEntries array
@@ -86,14 +85,6 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
 
   const toggleSelectOne = (id) => {
     setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleExpanded = (id) => {
-    setExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
@@ -217,47 +208,12 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
 
   const isApprovable = (entry) => !entry.approved && !!entry.clock_out;
 
-  const entryDetails = (entry) => {
-    const { total, brk, open } = entryHours(entry);
-    const offset = dayOffset(entry.clock_in, entry.clock_out);
-    return (
-      <dl className="detail-list detail-list-compact">
-        <dt>Project</dt>
-        <dd>{entry.projects?.name || 'Unknown'}</dd>
-        <dt>Time</dt>
-        <dd>
-          {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
-          {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
-        </dd>
-        <dt>Total</dt>
-        <dd>{open ? '–' : `${hours(total)} h`}</dd>
-        <dt>Break</dt>
-        <dd>{open ? '–' : `${hours(brk)} h`}</dd>
-        <dt>Mileage</dt>
-        <dd>{entry.mileage ? `${entry.mileage} km` : '–'}</dd>
-        <dt>Status</dt>
-        <dd>
-          <EntryStatusBadge entry={entry} />
-          {entry.approved && entry.approved_at && <span className="text-muted"> · {formatDate(entry.approved_at)}</span>}
-        </dd>
-        {entry.notes?.trim() && (
-          <>
-            <dt>Notes</dt>
-            <dd><ExpandableText text={entry.notes} /></dd>
-          </>
-        )}
-      </dl>
-    );
-  };
-
-  // Phones: a compact table (select box, who/when, net hours, expand) instead of a very wide one.
-  // Tap a row to select it; tap the arrow to see the rest of that entry.
-  const renderPhoneTable = () => (
+  const renderTable = () => (
     <div className="table-responsive">
-      <table className="table m-table">
+      <table className="table table-hover table-scroll">
         <thead>
           <tr>
-            <th className="check-cell">
+            <th className="check-cell sticky-col sticky-col-0">
               {approvableEntries.length > 0 && (
                 <input
                   type="checkbox"
@@ -269,95 +225,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                 />
               )}
             </th>
-            <th>Entry</th>
-            <th className="num">Net (h)</th>
-            <th aria-label="Details"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredEntries.map((entry) => {
-            const { net, open } = entryHours(entry);
-            const approvable = isApprovable(entry);
-            const isSelected = selectedIds.has(entry.id);
-            const isExpanded = expandedIds.has(entry.id);
-            const name = entry.profiles?.full_name || 'Unknown';
-
-            return (
-              <Fragment key={entry.id}>
-                <tr
-                  className={`${isSelected ? 'is-selected' : ''}${approvable ? ' is-clickable' : ''}`}
-                  onClick={(e) => handleRowClick(e, entry)}
-                >
-                  <td className="check-cell">
-                    {approvable && (
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        aria-label={`Select entry by ${name} on ${formatDate(entry.clock_in)}`}
-                        checked={isSelected}
-                        disabled={approving}
-                        onChange={() => toggleSelectOne(entry.id)}
-                      />
-                    )}
-                  </td>
-                  <td>
-                    <div className="cell-strong">{name}</div>
-                    <div className="cell-sub">
-                      {formatDate(entry.clock_in)}
-                      {(entry.approved || open) && <span className="m-status"><EntryStatusBadge entry={entry} /></span>}
-                    </div>
-                  </td>
-                  <td className="num cell-strong">{open ? '–' : hours(net)}</td>
-                  <td className="expand-cell">
-                    <button
-                      type="button"
-                      className="chevron-button"
-                      aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? 'Hide' : 'Show'} details for ${name} on ${formatDate(entry.clock_in)}`}
-                      onClick={() => toggleExpanded(entry.id)}
-                    >
-                      <span aria-hidden="true">▾</span>
-                    </button>
-                  </td>
-                </tr>
-                {isExpanded && (
-                  <tr className="detail-row">
-                    <td colSpan={4}>{entryDetails(entry)}</td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colSpan={2}>Total net hours</td>
-            <td className="num">{hours(totals.net)}</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-
-  const renderDesktopTable = () => (
-    <div className="table-responsive">
-      <table className="table table-hover">
-        <thead>
-          <tr>
-            <th className="check-cell">
-              {approvableEntries.length > 0 && (
-                <input
-                  type="checkbox"
-                  className="form-check-input"
-                  aria-label={`Select all ${approvableEntries.length} pending entries`}
-                  checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = indeterminate; }}
-                  onChange={toggleSelectAll}
-                />
-              )}
-            </th>
-            <th>Employee</th>
+            <th className="sticky-col sticky-col-1 sticky-edge">Employee</th>
             <th>Date</th>
             <th>Project</th>
             <th>Time</th>
@@ -382,7 +250,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                 className={`${isSelected ? 'is-selected' : ''}${approvable ? ' is-clickable' : ''}`}
                 onClick={(e) => handleRowClick(e, entry)}
               >
-                <td className="check-cell">
+                <td className="check-cell sticky-col sticky-col-0">
                   {approvable && (
                     <input
                       type="checkbox"
@@ -394,7 +262,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                     />
                   )}
                 </td>
-                <td className="cell-strong nowrap">{entry.profiles?.full_name || 'Unknown'}</td>
+                <td className="cell-strong nowrap sticky-col sticky-col-1 sticky-edge">{entry.profiles?.full_name || 'Unknown'}</td>
                 <td className="nowrap">{formatDate(entry.clock_in)}</td>
                 <td className="nowrap">{entry.projects?.name || 'Unknown'}</td>
                 <td className="nowrap">
@@ -574,7 +442,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
               : 'Try a different date range or employee.'}
           </EmptyState>
         ) : (
-          isPhone ? renderPhoneTable() : renderDesktopTable()
+          renderTable()
         )}
       </Card>
 

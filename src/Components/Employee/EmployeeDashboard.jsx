@@ -9,6 +9,7 @@ import Skeleton from '../Common/Skeleton';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import { EntryStatusBadge } from '../Common/StatusBadge';
 import { useToast } from '../Common/Toast';
+import ExpandableText from '../Common/ExpandableText';
 import TimeEntryForm from './TimeEntryForm';
 import { dayOffset, entryHours, formatDate, formatTime, hours, startOfWeek } from '../../utils/format';
 
@@ -137,14 +138,14 @@ const EmployeeDashboard = ({ profile }) => {
           </EmptyState>
         ) : (
           <div className="table-responsive">
-            <table className="table table-hover table-stack">
+            <table className="table table-hover table-scroll">
               <thead>
                 <tr>
-                  <th>Project</th>
+                  <th className="sticky-col sticky-col-0 sticky-edge">Project</th>
                   <th>Date</th>
                   <th>Time</th>
-                  <th className="num hide-mobile">Total (h)</th>
-                  <th className="num hide-mobile">Break (h)</th>
+                  <th className="num">Total (h)</th>
+                  <th className="num">Break (h)</th>
                   <th className="num">Net (h)</th>
                   <th className="num">Mileage</th>
                   <th>Notes</th>
@@ -159,17 +160,19 @@ const EmployeeDashboard = ({ profile }) => {
 
                   return (
                     <tr key={entry.id}>
-                      <td className="cell-title cell-strong">{entry.projects?.name}</td>
+                      <td className="cell-strong nowrap sticky-col sticky-col-0 sticky-edge">{entry.projects?.name}</td>
                       <td className="nowrap" data-label="Date">{formatDate(entry.clock_in)}</td>
                       <td className="nowrap" data-label="Time">
                         {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
                         {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
                       </td>
-                      <td className="num hide-mobile" data-label="Total (h)">{open ? '–' : hours(total)}</td>
-                      <td className="num hide-mobile" data-label="Break (h)">{open ? '–' : hours(brk)}</td>
+                      <td className="num" data-label="Total (h)">{open ? '–' : hours(total)}</td>
+                      <td className="num" data-label="Break (h)">{open ? '–' : hours(brk)}</td>
                       <td className="num cell-strong" data-label="Net (h)">{open ? '–' : hours(net)}</td>
                       <td className="num" data-label="Mileage">{entry.mileage ? `${entry.mileage} km` : '–'}</td>
-                      <td className="cell-notes" data-label="Notes">{entry.notes || '–'}</td>
+                      <td className="cell-notes" data-label="Notes">
+                        {entry.notes?.trim() ? <ExpandableText text={entry.notes} /> : '–'}
+                      </td>
                       <td data-label="Status"><EntryStatusBadge entry={entry} /></td>
                       <td className="cell-actions" data-label="">
                         {!entry.approved && (

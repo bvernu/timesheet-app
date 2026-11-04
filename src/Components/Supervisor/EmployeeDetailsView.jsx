@@ -100,7 +100,7 @@ const EmployeeDetailsView = ({ employee, onClose, onSave }) => {
             ) : 'Not provided'}
           </dd>
           <dt>Pay rate</dt><dd>{employee.pay_rate ? `$${Number(employee.pay_rate).toFixed(2)} / hour` : 'Not provided'}</dd>
-          <dt>Joining date</dt><dd>{employee.joining_date ? formatDate(`${employee.joining_date}T00:00:00`) : 'Not provided'}</dd>
+          <dt>Joining date</dt><dd>{employee.joining_date ? formatDate(employee.joining_date) : 'Not provided'}</dd>
           <dt>Address</dt><dd>{employee.address || 'Not provided'}</dd>
         </dl>
       ) : (
