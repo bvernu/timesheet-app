@@ -5,16 +5,47 @@ import EmployeeDashboard from './Components/Employee/EmployeeDashboard';
 import ManagerDashboard from './Components/Manager/ManagerDashboard';
 import SupervisorDashboard from './Components/Supervisor/SupervisorDashboard';
 import ChangePasswordModal from './ChangePasswordModal';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import UserMenu from './Components/Common/UserMenu';
+import BrandLogo from './tenant/BrandLogo';
+import { useTenant } from './tenant/TenantContext';
 import './App.css';
 
 function App() {
+  const tenant = useTenant();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [loginNotice, setLoginNotice] = useState('');
 
   useEffect(() => {
+    // Loads the signed-in user's profile and makes sure they belong to THIS site's company.
+    const loadProfile = async (userId) => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (data) {
+        // Check if user is deleted
+        if (data.role === 'deleted') {
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+        // Portal check: an account from another company cannot use this company's site.
+        if (data.tenant_id !== tenant.id) {
+          setLoginNotice("These login details can't be used on this site. Please sign in at your own company's web address.");
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+        setProfile(data);
+      }
+      setLoading(false);
+    };
+
     // Check active sessions
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -37,26 +68,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  const loadProfile = async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    
-    if (data) {
-      // Check if user is deleted
-      if (data.role === 'deleted') {
-        await supabase.auth.signOut();
-        setLoading(false);
-        return;
-      }
-      setProfile(data);
-    }
-    setLoading(false);
-  };
+  }, [tenant.id]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -65,7 +77,7 @@ function App() {
   if (loading) {
     return (
       <div className="min-vh-100 d-flex align-items-center justify-content-center">
-        <div className="spinner-border text-primary" role="status">
+        <div className="spinner-border text-secondary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
       </div>
@@ -73,14 +85,14 @@ function App() {
   }
 
   if (!user) {
-    return <AuthPage />;
+    return <AuthPage notice={loginNotice} onClearNotice={() => setLoginNotice('')} />;
   }
 
   if (!profile) {
     return (
       <div className="min-vh-100 d-flex align-items-center justify-content-center">
         <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
+          <div className="spinner-border text-secondary mb-3" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
           <p className="text-muted">Setting up your profile...</p>
@@ -90,47 +102,26 @@ function App() {
   }
 
   return (
-    <div className="min-vh-100 bg-light">
-      <nav className="navbar navbar-expand-lg navbar-light" style={{ backgroundColor: '#E8E8E8', borderBottom: '3px solid #F18F20' }}>
-        <div className="container-fluid">
-          <span className="navbar-brand mb-0 h1">
-            <img 
-              src="/logo.png" 
-              alt="Company Logo" 
-              height="40"
-              className="me-2"
-            />
-          </span>
-          <div className="d-flex align-items-center gap-2">
-            <span className="me-3" style={{ color: '#080808', fontWeight: '500' }}>
-              {profile.full_name}
-            </span>
-            <button 
-              onClick={() => setShowChangePassword(true)}
-              className="btn btn-sm btn-outline-secondary"
-            >
-              Change Password
-            </button>
-            <button 
-              onClick={handleSignOut}
-              className="btn btn-sm"
-              style={{ 
-                backgroundColor: '#F18F20',
-                color: 'white',
-                border: 'none'
-              }}
-            >
-              Sign Out
-            </button>
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="topbar-brand">
+            <BrandLogo />
           </div>
+          <UserMenu
+            name={profile.full_name}
+            subtitle={`${profile.role.charAt(0).toUpperCase()}${profile.role.slice(1)} · ${tenant.name}`}
+            onChangePassword={() => setShowChangePassword(true)}
+            onSignOut={handleSignOut}
+          />
         </div>
-      </nav>
+      </header>
 
       {showChangePassword && (
         <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
       )}
 
-      <div className="container-fluid py-4">
+      <main className="page-container">
         {profile.role === 'supervisor' ? (
           <SupervisorDashboard profile={profile} />
         ) : profile.role === 'manager' ? (
@@ -138,7 +129,7 @@ function App() {
         ) : (
           <EmployeeDashboard profile={profile} />
         )}
-      </div>
+      </main>
     </div>
   );
 }
