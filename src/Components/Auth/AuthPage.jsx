@@ -116,6 +116,12 @@ const AuthPage = ({ notice = '', onClearNotice = () => {} }) => {
                 </div>
               )}
 
+              {typeof tenant.theme?.loginMessage === 'string' && tenant.theme.loginMessage.trim() && !showForgotPassword && (
+                <div className="alert alert-info" role="note">
+                  {tenant.theme.loginMessage.slice(0, 400)}
+                </div>
+              )}
+
               {notice && !error && (
                 <div className="alert alert-warning" role="alert">
                   {notice}

@@ -213,7 +213,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
       <table className="table table-hover table-scroll">
         <thead>
           <tr>
-            <th className="check-cell sticky-col sticky-col-0">
+            <th className="check-cell">
               {approvableEntries.length > 0 && (
                 <input
                   type="checkbox"
@@ -225,7 +225,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                 />
               )}
             </th>
-            <th className="sticky-col sticky-col-1 sticky-edge">Employee</th>
+            <th>Employee</th>
             <th>Date</th>
             <th>Project</th>
             <th>Time</th>
@@ -250,7 +250,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                 className={`${isSelected ? 'is-selected' : ''}${approvable ? ' is-clickable' : ''}`}
                 onClick={(e) => handleRowClick(e, entry)}
               >
-                <td className="check-cell sticky-col sticky-col-0">
+                <td className="check-cell">
                   {approvable && (
                     <input
                       type="checkbox"
@@ -262,7 +262,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                     />
                   )}
                 </td>
-                <td className="cell-strong nowrap sticky-col sticky-col-1 sticky-edge">{entry.profiles?.full_name || 'Unknown'}</td>
+                <td className="cell-strong nowrap">{entry.profiles?.full_name || 'Unknown'}</td>
                 <td className="nowrap">{formatDate(entry.clock_in)}</td>
                 <td className="nowrap">{entry.projects?.name || 'Unknown'}</td>
                 <td className="nowrap">
@@ -425,6 +425,18 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
             </div>
           )}
         </>
+      )}
+
+      {approvableEntries.length > 0 && !loading && (
+        <div className="select-bar">
+          <Button variant="secondary" size="sm" onClick={toggleSelectAll}>
+            {allSelected ? 'Clear selection' : `Select all ${approvableEntries.length} pending`}
+          </Button>
+          <span className="select-hint">
+            {someSelected && !allSelected ? `${selectedIds.size} selected · ` : ''}
+            {isPhone ? 'Tap' : 'Click'} any row to select it
+          </span>
+        </div>
       )}
 
       <Card flush>

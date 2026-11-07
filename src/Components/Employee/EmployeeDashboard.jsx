@@ -141,7 +141,7 @@ const EmployeeDashboard = ({ profile }) => {
             <table className="table table-hover table-scroll">
               <thead>
                 <tr>
-                  <th className="sticky-col sticky-col-0 sticky-edge">Project</th>
+                  <th>Project</th>
                   <th>Date</th>
                   <th>Time</th>
                   <th className="num">Total (h)</th>
@@ -160,7 +160,7 @@ const EmployeeDashboard = ({ profile }) => {
 
                   return (
                     <tr key={entry.id}>
-                      <td className="cell-strong nowrap sticky-col sticky-col-0 sticky-edge">{entry.projects?.name}</td>
+                      <td className="cell-strong nowrap">{entry.projects?.name}</td>
                       <td className="nowrap" data-label="Date">{formatDate(entry.clock_in)}</td>
                       <td className="nowrap" data-label="Time">
                         {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
