@@ -1,91 +1,112 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Card from '../Common/Card';
+import Button from '../Common/Button';
+import PageHeader from '../Common/PageHeader';
+import EmptyState from '../Common/EmptyState';
+import Skeleton from '../Common/Skeleton';
+import ConfirmDialog from '../Common/ConfirmDialog';
+import { EntryStatusBadge } from '../Common/StatusBadge';
+import { useToast } from '../Common/Toast';
 import { supabase } from '../../supabaseClient';
+import ExpandableText from '../Common/ExpandableText';
+import { downloadXlsx } from '../../utils/xlsx';
+import { useMediaQuery } from '../../utils/useMediaQuery';
+import { dayOffset, entryHours, formatDate, formatTime, hours, isoDate, parseLocalDate } from '../../utils/format';
 
-const TimesheetsTab = ({ timeEntries, employees }) => {
+const defaultRange = () => {
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(today.getDate() - 7);
+  return { start: isoDate(weekAgo), end: isoDate(today) };
+};
+
+const STATUS_OPTIONS = [
+  { id: 'pending', label: 'Pending' },
+  { id: 'approved', label: 'Approved' },
+  { id: 'all', label: 'All' },
+];
+
+const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
+  const toast = useToast();
   const [entries, setEntries] = useState(timeEntries);
   const [selectedEmployee, setSelectedEmployee] = useState('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [expandedNotes, setExpandedNotes] = useState({});
+  const [startDate, setStartDate] = useState(() => defaultRange().start);
+  const [endDate, setEndDate] = useState(() => defaultRange().end);
+  const [status, setStatus] = useState('pending');
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [confirming, setConfirming] = useState(false);
   const [approving, setApproving] = useState(false);
+  const isPhone = useMediaQuery('(max-width: 767.98px)');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Keep local state in sync if parent re-passes a new timeEntries array
   useEffect(() => {
     setEntries(timeEntries);
   }, [timeEntries]);
 
-  // Default date range: last 7 days
-  useEffect(() => {
-    const today = new Date();
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(today.getDate() - 7);
-    setEndDate(today.toISOString().split('T')[0]);
-    setStartDate(sevenDaysAgo.toISOString().split('T')[0]);
-  }, []);
+  const isDefaultFilter = (() => {
+    const d = defaultRange();
+    return selectedEmployee === 'all' && status === 'pending' && startDate === d.start && endDate === d.end;
+  })();
 
-  const calculateBreak = (hours) => {
-    if (hours > 10) return 1.0;
-    if (hours > 5) return 0.5;
-    return 0;
+  const resetFilters = () => {
+    const d = defaultRange();
+    setSelectedEmployee('all');
+    setStatus('pending');
+    setStartDate(d.start);
+    setEndDate(d.end);
   };
 
-  const toggleNotes = (entryId) => {
-    setExpandedNotes(prev => ({ ...prev, [entryId]: !prev[entryId] }));
-  };
-
-  const filteredEntries = entries.filter(entry => {
-    const matchesEmployee = selectedEmployee === 'all' || entry.employee_id === selectedEmployee;
-    let matchesDate = true;
-    if (startDate || endDate) {
-      const entryDate = new Date(entry.clock_in);
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        matchesDate = matchesDate && entryDate >= start;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        matchesDate = matchesDate && entryDate <= end;
-      }
+  const filteredEntries = useMemo(() => entries.filter((entry) => {
+    if (selectedEmployee !== 'all' && entry.employee_id !== selectedEmployee) return false;
+    if (status === 'pending' && entry.approved) return false;
+    if (status === 'approved' && !entry.approved) return false;
+    const entryDate = new Date(entry.clock_in);
+    if (startDate) {
+      const start = parseLocalDate(startDate); // local midnight at the start of that day
+      if (entryDate < start) return false;
     }
-    return matchesEmployee && matchesDate;
-  });
+    if (endDate) {
+      const end = parseLocalDate(endDate);
+      end.setHours(23, 59, 59, 999); // ...and the very end of that same local day
+      if (entryDate > end) return false;
+    }
+    return true;
+  }), [entries, selectedEmployee, status, startDate, endDate]);
 
-  const approvableEntries = filteredEntries.filter(e => !e.approved && e.clock_out);
+  const approvableEntries = filteredEntries.filter((e) => !e.approved && e.clock_out);
   const someSelected = selectedIds.size > 0;
-  const allSelected = approvableEntries.length > 0 && approvableEntries.every(e => selectedIds.has(e.id));
+  const allSelected = approvableEntries.length > 0 && approvableEntries.every((e) => selectedIds.has(e.id));
   const indeterminate = someSelected && !allSelected;
 
   const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(approvableEntries.map(e => e.id)));
-    }
+    setSelectedIds(allSelected ? new Set() : new Set(approvableEntries.map((e) => e.id)));
   };
 
   const toggleSelectOne = (id) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
 
+  // Tapping anywhere on a row selects it for approval. Buttons, links, the checkbox itself, and
+  // highlighting text (to copy it) are left alone.
+  const handleRowClick = (e, entry) => {
+    if (approving || entry.approved || !entry.clock_out) return;
+    if (e.target.closest('button, a, input, label, select, textarea')) return;
+    if (window.getSelection && String(window.getSelection()).length > 0) return;
+    toggleSelectOne(entry.id);
+  };
+
   const patchApproved = (ids, approvedAt, approvedBy) => {
-    setEntries(prev =>
-      prev.map(e =>
-        ids.includes(e.id)
-          ? { ...e, approved: true, approved_at: approvedAt, approved_by: approvedBy }
-          : e
-      )
+    setEntries((prev) =>
+      prev.map((e) => (ids.includes(e.id) ? { ...e, approved: true, approved_at: approvedAt, approved_by: approvedBy } : e))
     );
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
-      ids.forEach(id => next.delete(id));
+      ids.forEach((id) => next.delete(id));
       return next;
     });
   };
@@ -93,7 +114,6 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
   const handleBulkApprove = async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    if (!confirm(`Approve ${ids.length} timesheet entr${ids.length === 1 ? 'y' : 'ies'}? This action cannot be undone.`)) return;
 
     setApproving(true);
     const { data: { user } } = await supabase.auth.getUser();
@@ -105,269 +125,362 @@ const TimesheetsTab = ({ timeEntries, employees }) => {
       .in('id', ids);
 
     setApproving(false);
+    setConfirming(false);
 
     if (error) {
-      alert('Error approving entries: ' + error.message);
+      toast.error(`Couldn't approve the entries: ${error.message}`);
     } else {
       patchApproved(ids, now, user.id);
+      toast.success(`${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} approved`);
     }
   };
 
-  const totalNetHours = filteredEntries.reduce((sum, entry) => {
-    if (entry.clock_out) {
-      const totalHours = (new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60);
-      return sum + (totalHours - calculateBreak(totalHours));
-    }
-    return sum;
-  }, 0);
+  const totals = useMemo(() => {
+    const byEmployee = new Map();
+    let net = 0;
+    filteredEntries.forEach((entry) => {
+      const h = entryHours(entry).net;
+      net += h;
+      const key = entry.employee_id;
+      const row = byEmployee.get(key) || { name: entry.profiles?.full_name || 'Unknown', net: 0, entries: 0 };
+      row.net += h;
+      row.entries += 1;
+      byEmployee.set(key, row);
+    });
+    return { net, byEmployee: [...byEmployee.values()].sort((a, b) => b.net - a.net) };
+  }, [filteredEntries]);
 
-  return (
-    <div className="pb-5">
-      <div className="row mb-3">
-        <div className="col-12">
-          <h4 className="mb-3">Employee Timesheets</h4>
-        </div>
-        <div className="col-12">
-          <div className="filter-section">
-            <div className="row g-2 align-items-end">
-              <div className="col-md-3 col-6">
-                <label className="small fw-bold">From:</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="col-md-3 col-6">
-                <label className="small fw-bold">To:</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-              <div className="col-md-4 col-8">
-                <label className="small fw-bold">Employee:</label>
-                <select
-                  className="form-select"
-                  value={selectedEmployee}
-                  onChange={(e) => setSelectedEmployee(e.target.value)}
-                >
-                  <option value="all">All Employees</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-md-2 col-4 d-flex gap-2">
-                {(startDate || endDate) && (
-                  <button
-                    className="btn btn-outline-secondary w-100"
-                    onClick={() => { setStartDate(''); setEndDate(''); }}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+  // Real Excel file: dates and times are true date/time cells and the hours are numbers,
+  // so they display correctly straight away and can be sorted, filtered and summed.
+  const handleExport = () => {
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const rows = filteredEntries.map((entry) => {
+      const { total, brk, net, open } = entryHours(entry);
+      const clockIn = new Date(entry.clock_in);
+      return [
+        entry.profiles?.full_name || 'Unknown',
+        startOfDay(clockIn),
+        entry.projects?.name || 'Unknown',
+        clockIn,
+        entry.clock_out ? new Date(entry.clock_out) : null,
+        open ? null : total,
+        open ? null : brk,
+        open ? null : net,
+        entry.mileage === null || entry.mileage === undefined || entry.mileage === '' ? null : Number(entry.mileage),
+        entry.notes || null,
+        entry.approved ? 'Approved' : open ? 'In progress' : 'Pending',
+        entry.approved_at ? startOfDay(new Date(entry.approved_at)) : null,
+      ];
+    });
 
-      <Card>
-        <div className="table-responsive">
-          <table className="table table-hover table-sm">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Date</th>
-                <th>Project</th>
-                <th>Time In</th>
-                <th>Time Out</th>
-                <th>Total</th>
-                <th>Break</th>
-                <th>Net</th>
-                <th>Mileage</th>
-                <th>Notes</th>
-                <th style={{ minWidth: '140px' }}>
-                  <div className="d-flex align-items-center gap-2">
-                    <span>Actions</span>
-                    {approvableEntries.length > 0 && (
-                      <span
-                        className="d-flex align-items-center gap-1"
-                        title={`Select all pending entries. ${selectedIds.size} of ${approvableEntries.length} selected.`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="form-check-input mt-0"
-                          style={{ cursor: 'pointer' }}
-                          checked={allSelected}
-                          ref={el => { if (el) el.indeterminate = indeterminate; }}
-                          onChange={toggleSelectAll}
-                        />
-                        <span className="small text-muted fw-normal">
-                          {someSelected ? `${selectedIds.size}/${approvableEntries.length}` : 'All'}
-                        </span>
-                      </span>
+    downloadXlsx(`timesheets_${startDate || 'start'}_to_${endDate || 'today'}.xlsx`, [
+      {
+        name: 'Timesheets',
+        columns: [
+          { header: 'Employee', width: 22 },
+          { header: 'Date', width: 13, style: 'date' },
+          { header: 'Project', width: 28 },
+          { header: 'Clock in', width: 21, style: 'datetime' },
+          { header: 'Clock out', width: 21, style: 'datetime' },
+          { header: 'Total hours', width: 12, style: 'hours' },
+          { header: 'Break hours', width: 12, style: 'hours' },
+          { header: 'Net hours', width: 12, style: 'hours' },
+          { header: 'Mileage (km)', width: 13, style: 'distance' },
+          { header: 'Notes', width: 42, style: 'wrap' },
+          { header: 'Status', width: 13 },
+          { header: 'Approved on', width: 13, style: 'date' },
+        ],
+        rows,
+        totals: { label: 'Total', sum: [5, 6, 7, 8] },
+      },
+      {
+        name: 'By employee',
+        columns: [
+          { header: 'Employee', width: 26 },
+          { header: 'Entries', width: 10, style: 'count' },
+          { header: 'Net hours', width: 12, style: 'hours' },
+        ],
+        rows: totals.byEmployee.map((r) => [r.name, r.entries, r.net]),
+        totals: { label: 'Total', sum: [1, 2] },
+      },
+    ]);
+  };
+
+  const isApprovable = (entry) => !entry.approved && !!entry.clock_out;
+
+  const renderTable = () => (
+    <div className="table-responsive">
+      <table className="table table-hover table-scroll">
+        <thead>
+          <tr>
+            <th className="check-cell">
+              {approvableEntries.length > 0 && (
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  aria-label={`Select all ${approvableEntries.length} pending entries`}
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+                  onChange={toggleSelectAll}
+                />
+              )}
+            </th>
+            <th>Employee</th>
+            <th>Date</th>
+            <th>Project</th>
+            <th>Time</th>
+            <th className="num">Total (h)</th>
+            <th className="num">Break (h)</th>
+            <th className="num">Net (h)</th>
+            <th className="num">Mileage</th>
+            <th>Notes</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredEntries.map((entry) => {
+            const { total, brk, net, open } = entryHours(entry);
+            const offset = dayOffset(entry.clock_in, entry.clock_out);
+            const approvable = isApprovable(entry);
+            const isSelected = selectedIds.has(entry.id);
+
+            return (
+              <tr
+                key={entry.id}
+                className={`${isSelected ? 'is-selected' : ''}${approvable ? ' is-clickable' : ''}`}
+                onClick={(e) => handleRowClick(e, entry)}
+              >
+                <td className="check-cell">
+                  {approvable && (
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      aria-label={`Select entry by ${entry.profiles?.full_name || 'employee'} on ${formatDate(entry.clock_in)}`}
+                      checked={isSelected}
+                      disabled={approving}
+                      onChange={() => toggleSelectOne(entry.id)}
+                    />
+                  )}
+                </td>
+                <td className="cell-strong nowrap">{entry.profiles?.full_name || 'Unknown'}</td>
+                <td className="nowrap">{formatDate(entry.clock_in)}</td>
+                <td className="nowrap">{entry.projects?.name || 'Unknown'}</td>
+                <td className="nowrap">
+                  {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
+                  {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
+                </td>
+                <td className="num">{open ? '–' : hours(total)}</td>
+                <td className="num">{open ? '–' : hours(brk)}</td>
+                <td className="num cell-strong">{open ? '–' : hours(net)}</td>
+                <td className="num">{entry.mileage ? `${entry.mileage} km` : '–'}</td>
+                <td className="cell-notes">
+                  {entry.notes?.trim() ? <ExpandableText text={entry.notes} /> : '–'}
+                </td>
+                <td>
+                  <div className="cell-stack">
+                    <EntryStatusBadge entry={entry} />
+                    {entry.approved && entry.approved_at && (
+                      <span className="cell-sub">{formatDate(entry.approved_at)}</span>
                     )}
                   </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEntries.map((entry) => {
-                const clockInDate = new Date(entry.clock_in);
-                const clockOutDate = entry.clock_out ? new Date(entry.clock_out) : null;
-                const totalHours = clockOutDate ? (clockOutDate - clockInDate) / (1000 * 60 * 60) : 0;
-                const breakHours = clockOutDate ? calculateBreak(totalHours) : 0;
-                const netHours = clockOutDate ? totalHours - breakHours : 0;
-                const hasNotes = entry.notes && entry.notes.trim() !== '';
-                const isApprovable = !entry.approved && clockOutDate;
-                const isSelected = selectedIds.has(entry.id);
-
-                let rowClass = '';
-                if (entry.approved) rowClass = 'table-success';
-                else if (isSelected) rowClass = 'table-warning';
-
-                return (
-                  <tr
-                    key={entry.id}
-                    className={rowClass}
-                    style={isSelected ? { outline: '2px solid #ffc107', outlineOffset: '-2px' } : {}}
-                  >
-                    <td className="fw-medium" style={{ minWidth: '120px' }}>
-                      {entry.profiles?.full_name || 'Unknown'}
-                      {entry.approved && <span className="badge bg-success ms-2">Approved</span>}
-                    </td>
-                    <td style={{ minWidth: '100px' }}>
-                      {clockInDate.toLocaleDateString()}
-                    </td>
-                    <td style={{ minWidth: '150px' }}>
-                      {entry.projects?.name || 'Unknown'}
-                    </td>
-                    <td style={{ minWidth: '80px' }}>
-                      {clockInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td style={{ minWidth: '80px' }}>
-                      {clockOutDate
-                        ? clockOutDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : '-'}
-                    </td>
-                    <td style={{ minWidth: '70px' }}>
-                      {clockOutDate ? totalHours.toFixed(2) : 'Ongoing'}
-                    </td>
-                    <td style={{ minWidth: '60px' }}>
-                      {clockOutDate ? breakHours.toFixed(2) : '-'}
-                    </td>
-                    <td className="fw-bold" style={{ minWidth: '70px' }}>
-                      {clockOutDate ? netHours.toFixed(2) : '-'}
-                    </td>
-                    <td style={{ minWidth: '80px' }}>
-                      {entry.mileage ? `${entry.mileage} km` : '-'}
-                    </td>
-                    <td style={{ minWidth: '100px', maxWidth: '200px' }}>
-                      {hasNotes ? (
-                        <div>
-                          <button
-                            className="btn btn-sm btn-link p-0 text-decoration-none"
-                            onClick={() => toggleNotes(entry.id)}
-                          >
-                            {expandedNotes[entry.id] ? 'Hide' : 'View'}
-                          </button>
-                          {expandedNotes[entry.id] && (
-                            <div className="small mt-1 text-muted">{entry.notes}</div>
-                          )}
-                        </div>
-                      ) : '-'}
-                    </td>
-                    <td style={{ minWidth: '140px' }}>
-                      {isApprovable ? (
-                        <button
-                          className={`btn btn-sm ${isSelected ? 'btn-warning' : 'btn-outline-success'}`}
-                          onClick={() => toggleSelectOne(entry.id)}
-                          disabled={approving}
-                          title={isSelected ? 'Click to deselect' : 'Click to queue for approval'}
-                        >
-                          {isSelected ? '✓ Selected' : 'Approve'}
-                        </button>
-                      ) : entry.approved ? (
-                        <small className="text-muted">
-                          Locked
-                          {entry.approved_at && (
-                            <div>{new Date(entry.approved_at).toLocaleDateString()}</div>
-                          )}
-                        </small>
-                      ) : (
-                        <small className="text-muted">Incomplete</small>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredEntries.length === 0 && (
-                <tr>
-                  <td colSpan="11" className="text-center text-muted py-4">
-                    No time entries found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            <tfoot>
-              <tr className="table-active">
-                <td colSpan="7" className="text-end fw-bold">Total Net Hours:</td>
-                <td className="fw-bold" style={{ fontSize: '1.1rem' }}>
-                  {totalNetHours.toFixed(2)}
                 </td>
-                <td colSpan="3"></td>
               </tr>
-            </tfoot>
-          </table>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={7} className="num">Total net hours</td>
+            <td className="num">{hours(totals.net)}</td>
+            <td colSpan={3}></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+
+  const pendingInView = approvableEntries.length;
+
+  const dateFields = (
+    <>
+      <div className="field toolbar-half">
+        <label className="form-label" htmlFor="ts-from">From</label>
+        <input id="ts-from" type="date" className="form-control" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      </div>
+      <div className="field toolbar-half">
+        <label className="form-label" htmlFor="ts-to">To</label>
+        <input id="ts-to" type="date" className="form-control" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+      </div>
+    </>
+  );
+
+  const employeeField = (
+    <div className="field">
+      <label className="form-label" htmlFor="ts-employee">Employee</label>
+      <select id="ts-employee" className="form-select" value={selectedEmployee} onChange={(e) => setSelectedEmployee(e.target.value)}>
+        <option value="all">All employees</option>
+        {employees.map((employee) => (
+          <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const statusSwitch = (
+    <div className="segmented" role="group" aria-label="Status">
+      {STATUS_OPTIONS.map((opt) => (
+        <button
+          key={opt.id}
+          type="button"
+          className={status === opt.id ? 'active' : ''}
+          aria-pressed={status === opt.id}
+          onClick={() => setStatus(opt.id)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const employeeName = selectedEmployee === 'all' ? 'All employees' : employees.find((e) => e.id === selectedEmployee)?.full_name || 'Employee';
+  const filterSummary = `${startDate ? formatDate(startDate) : 'Start'} – ${endDate ? formatDate(endDate) : 'Today'} · ${employeeName}`;
+
+  return (
+    <div>
+      <PageHeader
+        title="All timesheets"
+        hideTitleOnPhone
+        actions={
+          <Button variant="secondary" onClick={handleExport} disabled={filteredEntries.length === 0}>
+            Export to Excel
+          </Button>
+        }
+      />
+
+      {isPhone ? (
+        <div className="phone-filters">
+          {statusSwitch}
+          <button
+            type="button"
+            className="filter-summary"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((o) => !o)}
+          >
+            <span className="filter-summary-label">Filters</span>
+            <span className="filter-summary-text">{filterSummary}</span>
+            <span className="filter-summary-caret" aria-hidden="true">{filtersOpen ? '▴' : '▾'}</span>
+          </button>
+          {filtersOpen && (
+            <div className="toolbar filter-panel">
+              {dateFields}
+              {employeeField}
+              {!isDefaultFilter && <Button variant="quiet" onClick={resetFilters}>Reset filters</Button>}
+            </div>
+          )}
         </div>
+      ) : (
+        <div className="toolbar">
+          {dateFields}
+          {employeeField}
+          <div className="field">
+            <span className="form-label d-block" id="ts-status-label">Status</span>
+            {statusSwitch}
+          </div>
+          {!isDefaultFilter && (
+            <div className="field toolbar-end">
+              <Button variant="quiet" onClick={resetFilters}>Reset filters</Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isPhone ? (
+        <div className="stat-strip" aria-label="Summary">
+          <div><strong>{hours(totals.net)}</strong><span>net hours</span></div>
+          <div><strong>{filteredEntries.length}</strong><span>entries</span></div>
+          <div><strong>{pendingInView}</strong><span>to approve</span></div>
+        </div>
+      ) : (
+        <>
+          <div className="stat-row">
+            <div className="stat">
+              <div className="stat-label">Net hours</div>
+              <div className="stat-value">{hours(totals.net)}<span className="stat-unit">h</span></div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Entries</div>
+              <div className="stat-value">{filteredEntries.length}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Ready to approve</div>
+              <div className="stat-value">{pendingInView}</div>
+            </div>
+          </div>
+
+          {totals.byEmployee.length > 1 && (
+            <div className="chip-row" aria-label="Net hours by employee">
+              {totals.byEmployee.map((row) => (
+                <span key={row.name} className="chip">{row.name} <strong>{hours(row.net)} h</strong></span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {approvableEntries.length > 0 && !loading && (
+        <div className="select-bar">
+          <Button variant="secondary" size="sm" onClick={toggleSelectAll}>
+            {allSelected ? 'Clear selection' : `Select all ${approvableEntries.length} pending`}
+          </Button>
+          <span className="select-hint">
+            {someSelected && !allSelected ? `${selectedIds.size} selected · ` : ''}
+            {isPhone ? 'Tap' : 'Click'} any row to select it
+          </span>
+        </div>
+      )}
+
+      <Card flush>
+        {loading ? (
+          <Skeleton rows={5} />
+        ) : filteredEntries.length === 0 ? (
+          <EmptyState
+            title={status === 'pending' ? 'Nothing waiting for approval' : 'No time entries found'}
+            action={!isDefaultFilter || status !== 'all'
+              ? <Button variant="secondary" onClick={() => { setStatus('all'); }}>Show all statuses</Button>
+              : undefined}
+          >
+            {status === 'pending'
+              ? 'There are no pending entries for these dates and employees.'
+              : 'Try a different date range or employee.'}
+          </EmptyState>
+        ) : (
+          renderTable()
+        )}
       </Card>
 
-      {/* Sticky bulk-approve bar — appears when any rows are queued */}
+      {/* Appears as soon as any rows are ticked */}
       {someSelected && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1050,
-            background: '#212529',
-            color: '#fff',
-            borderRadius: '12px',
-            padding: '12px 20px',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-            minWidth: '320px',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span className="fw-medium">
-            {selectedIds.size} entr{selectedIds.size === 1 ? 'y' : 'ies'} queued
-          </span>
-          <button
-            className="btn btn-success btn-sm px-3"
-            onClick={handleBulkApprove}
-            disabled={approving}
-          >
-            {approving ? 'Approving…' : `Confirm Approval (${selectedIds.size})`}
-          </button>
-          <button
-            className="btn btn-outline-light btn-sm"
-            onClick={() => setSelectedIds(new Set())}
-            disabled={approving}
-          >
-            Cancel
-          </button>
+        <div className="bulk-bar" role="region" aria-label="Approve selected entries">
+          <span>{selectedIds.size} selected</span>
+          <Button size="sm" onClick={() => setConfirming(true)} disabled={approving}>
+            Approve selected
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={approving}>
+            Clear
+          </Button>
         </div>
+      )}
+
+      {confirming && (
+        <ConfirmDialog
+          title={`Approve ${selectedIds.size} ${selectedIds.size === 1 ? 'entry' : 'entries'}?`}
+          confirmLabel="Approve"
+          busy={approving}
+          onConfirm={handleBulkApprove}
+          onCancel={() => setConfirming(false)}
+        >
+          <p>Approved entries are locked, and employees can no longer edit or delete them. This can&apos;t be undone.</p>
+        </ConfirmDialog>
       )}
     </div>
   );

@@ -1,82 +1,87 @@
-// //import React from 'react'
-// import { ReactNode } from "react";
+import { useState } from 'react';
+import Drawer from './Drawer';
+import { useMediaQuery } from '../../utils/useMediaQuery';
 
-// // interface Tab {
-// //   id: string;
-// //   label: string;
-// //   content: ReactNode;
-// // }
-
-// // interface TabsProps {
-// //   tabs: Tab[];
-// // }
-
-// const Tabs = ({ tabs }) => {
-//   return (
-//     <div>
-//       <ul className="nav nav-pills mb-3" role="tablist">
-//         {tabs.map((tab, index) => (
-//           <li className="nav-item" role="presentation" key={tab.id}>
-//             <button
-//               className={`nav-link ${index === 0 ? "active" : ""}`}
-//               id={`${tab.label}-tab`}
-//               data-bs-toggle="pill"
-//               data-bs-target={`#pills-${tab.label}`}
-//               type="button"
-//               role="pill"
-//               aria-controls={`pills-${tab.label}`}
-//               aria-selected={index === 0 ? "true" : "false"}
-//             >
-//               {tab.label}
-//             </button>
-//           </li>
-//         ))}
-//       </ul>
-//       <div className="tab-content">
-//         {tabs.map((tab, index) => (
-//           <div
-//             key={tab.id}
-//             className={`tab-pane fade ${index === 0 ? "show active" : ""}`}
-//             id={`pills-${tab.label}`}
-//             role="tabpanel"
-//             aria-labelledby={`pills-${tab.label}-tab`}
-//           >
-//             {tab.content}
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default Tabs;
-
+// Page-level navigation between the sections of a dashboard. Only the active section's content is rendered.
+//  - Desktop: underlined tabs.
+//  - Phone:   a bar showing the current section with a menu button, which opens a side menu listing every section
+//             (no sideways-scrolling tab strip).
 const Tabs = ({ tabs, activeTab, onTabChange }) => {
+  const isPhone = useMediaQuery('(max-width: 767.98px)');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const active = tabs.find((t) => t.id === activeTab) || tabs[0];
+
+  if (isPhone) {
+    return (
+      <div>
+        <div className="section-bar">
+          <button
+            type="button"
+            className="section-button"
+            aria-haspopup="dialog"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
+          >
+            <span className="menu-icon" aria-hidden="true"><span /><span /><span /></span>
+            <span className="section-current">{active.label}</span>
+            <span className="section-menu-label">Menu</span>
+          </button>
+        </div>
+
+        {menuOpen && (
+          <Drawer title="Menu" onClose={() => setMenuOpen(false)}>
+            <nav aria-label="Sections">
+              <ul className="drawer-nav">
+                {tabs.map((tab) => (
+                  <li key={tab.id}>
+                    <button
+                      type="button"
+                      className={`drawer-link${tab.id === active.id ? ' active' : ''}`}
+                      aria-current={tab.id === active.id ? 'page' : undefined}
+                      onClick={() => {
+                        onTabChange(tab.id);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </Drawer>
+        )}
+
+        <div className="tab-panel">{active.content}</div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <ul className="nav nav-tabs mb-3" role="tablist">
+      <div className="tab-bar" role="tablist">
         {tabs.map((tab) => (
-          <li className="nav-item" role="presentation" key={tab.id}>
-            <button
-              className={`nav-link ${activeTab === tab.id ? "active" : ""}`}
-              type="button"
-              onClick={() => onTabChange(tab.id)}
-            >
-              {tab.label}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="tab-content">
-        {tabs.map((tab) => (
-          <div
+          <button
             key={tab.id}
-            className={`tab-pane fade ${activeTab === tab.id ? "show active" : ""}`}
+            id={`tab-${tab.id}`}
+            role="tab"
+            type="button"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`panel-${tab.id}`}
+            className={`tab-link${activeTab === tab.id ? ' active' : ''}`}
+            onClick={() => onTabChange(tab.id)}
           >
-            {activeTab === tab.id && tab.content}
-          </div>
+            {tab.label}
+          </button>
         ))}
       </div>
+      {tabs.map((tab) =>
+        activeTab === tab.id ? (
+          <div key={tab.id} id={`panel-${tab.id}`} role="tabpanel" aria-labelledby={`tab-${tab.id}`} className="tab-panel">
+            {tab.content}
+          </div>
+        ) : null
+      )}
     </div>
   );
 };
