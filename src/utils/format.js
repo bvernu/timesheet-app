@@ -33,10 +33,11 @@ export const calculateBreak = (hours) => {
 };
 
 // total / break / net hours for one time entry (all 0 while the entry is still open).
-export const entryHours = (entry) => {
+// autoBreak = false (a company setting) means no automatic break is taken off.
+export const entryHours = (entry, autoBreak = true) => {
   if (!entry?.clock_out) return { total: 0, brk: 0, net: 0, open: true };
   const total = (new Date(entry.clock_out) - new Date(entry.clock_in)) / 3600000;
-  const brk = calculateBreak(total);
+  const brk = autoBreak ? calculateBreak(total) : 0;
   return { total, brk, net: total - brk, open: false };
 };
 

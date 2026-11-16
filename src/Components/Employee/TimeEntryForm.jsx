@@ -4,6 +4,7 @@ import Modal from '../Common/Modal';
 import Button from '../Common/Button';
 import { formatDate } from '../../utils/format';
 import { useToast } from '../Common/Toast';
+import { useTenantSettings } from '../../tenant/settings';
 
 // <input type="datetime-local"> wants local time as "YYYY-MM-DDTHH:mm"
 const toLocalInput = (iso) =>
@@ -11,6 +12,7 @@ const toLocalInput = (iso) =>
 
 const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => {
   const toast = useToast();
+  const { projectField, mileageField } = useTenantSettings();
   const [projectId, setProjectId] = useState(editingEntry?.project_id || '');
   const [clockIn, setClockIn] = useState(toLocalInput(editingEntry?.clock_in));
   const [clockOut, setClockOut] = useState(toLocalInput(editingEntry?.clock_out));
@@ -39,8 +41,8 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
     e.preventDefault();
     setError('');
 
-    if (!projectId || !clockIn) {
-      setError('Project and clock-in time are required.');
+    if ((projectField && !projectId) || !clockIn) {
+      setError(projectField ? 'Project and clock-in time are required.' : 'Clock-in time is required.');
       return;
     }
     if (clockOut && new Date(clockOut) <= new Date(clockIn)) {
@@ -50,12 +52,13 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
 
     const entryData = {
       employee_id: profile.id,
-      project_id: projectId,
       clock_in: new Date(clockIn).toISOString(),
       clock_out: clockOut ? new Date(clockOut).toISOString() : null,
       notes: notes,
-      mileage: mileage ? parseFloat(mileage) : null,
     };
+    // A field this company has switched off is left out entirely, so editing an entry never wipes a value saved earlier.
+    if (projectField) entryData.project_id = projectId;
+    if (mileageField) entryData.mileage = mileage ? parseFloat(mileage) : null;
 
     setSaving(true);
     try {
@@ -86,6 +89,7 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
       }
     >
       <form id="time-entry-form" onSubmit={handleSubmit}>
+        {projectField && (
         <div className="field">
           <label className="form-label" htmlFor="te-project">
             Project<span className="required-mark" aria-hidden="true"> *</span>
@@ -105,6 +109,7 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
             ))}
           </select>
         </div>
+        )}
 
         <div className="row">
           <div className="col-md-6">
@@ -136,6 +141,7 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
           </div>
         </div>
 
+        {mileageField && (
         <div className="field">
           <label className="form-label" htmlFor="te-mileage">Mileage (km)</label>
           <input
@@ -150,6 +156,7 @@ const TimeEntryForm = ({ profile, projects, editingEntry, onClose, onSave }) => 
             placeholder="Optional"
           />
         </div>
+        )}
 
         <div className="field">
           <label className="form-label" htmlFor="te-notes">Notes</label>

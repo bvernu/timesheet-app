@@ -9,6 +9,7 @@ import { EntryStatusBadge } from '../Common/StatusBadge';
 import { useToast } from '../Common/Toast';
 import { supabase } from '../../supabaseClient';
 import ExpandableText from '../Common/ExpandableText';
+import { useTenantSettings } from '../../tenant/settings';
 import { downloadXlsx } from '../../utils/xlsx';
 import { useMediaQuery } from '../../utils/useMediaQuery';
 import { dayOffset, entryHours, formatDate, formatTime, hours, isoDate, parseLocalDate } from '../../utils/format';
@@ -28,6 +29,8 @@ const STATUS_OPTIONS = [
 
 const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
   const toast = useToast();
+  const { projectField, mileageField, autoBreak } = useTenantSettings();
+  const hoursLabel = autoBreak ? 'Net hours' : 'Hours';
   const [entries, setEntries] = useState(timeEntries);
   const [selectedEmployee, setSelectedEmployee] = useState('all');
   const [startDate, setStartDate] = useState(() => defaultRange().start);
@@ -139,7 +142,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
     const byEmployee = new Map();
     let net = 0;
     filteredEntries.forEach((entry) => {
-      const h = entryHours(entry).net;
+      const h = entryHours(entry, autoBreak).net;
       net += h;
       const key = entry.employee_id;
       const row = byEmployee.get(key) || { name: entry.profiles?.full_name || 'Unknown', net: 0, entries: 0 };
@@ -148,57 +151,55 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
       byEmployee.set(key, row);
     });
     return { net, byEmployee: [...byEmployee.values()].sort((a, b) => b.net - a.net) };
-  }, [filteredEntries]);
+  }, [filteredEntries, autoBreak]);
 
   // Real Excel file: dates and times are true date/time cells and the hours are numbers,
   // so they display correctly straight away and can be sorted, filtered and summed.
+  // Columns a company has switched off (project, mileage, automatic break) are simply not included.
   const handleExport = () => {
     const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const status = (e, h) => (e.approved ? 'Approved' : h.open ? 'In progress' : 'Pending');
+    const columns = [
+      { header: 'Employee', width: 22, get: (e) => e.profiles?.full_name || 'Unknown' },
+      { header: 'Date', width: 13, style: 'date', get: (e, h, ci) => startOfDay(ci) },
+      projectField && { header: 'Project', width: 28, get: (e) => e.projects?.name || (e.project_id ? 'Unknown' : null) },
+      { header: 'Clock in', width: 21, style: 'datetime', get: (e, h, ci) => ci },
+      { header: 'Clock out', width: 21, style: 'datetime', get: (e) => (e.clock_out ? new Date(e.clock_out) : null) },
+      ...(autoBreak
+        ? [
+            { header: 'Total hours', width: 12, style: 'hours', sum: true, get: (e, h) => (h.open ? null : h.total) },
+            { header: 'Break hours', width: 12, style: 'hours', sum: true, get: (e, h) => (h.open ? null : h.brk) },
+            { header: 'Net hours', width: 12, style: 'hours', sum: true, get: (e, h) => (h.open ? null : h.net) },
+          ]
+        : [{ header: 'Hours', width: 12, style: 'hours', sum: true, get: (e, h) => (h.open ? null : h.net) }]),
+      mileageField && {
+        header: 'Mileage (km)', width: 13, style: 'distance', sum: true,
+        get: (e) => (e.mileage === null || e.mileage === undefined || e.mileage === '' ? null : Number(e.mileage)),
+      },
+      { header: 'Notes', width: 42, style: 'wrap', get: (e) => e.notes || null },
+      { header: 'Status', width: 13, get: (e, h) => status(e, h) },
+      { header: 'Approved on', width: 13, style: 'date', get: (e) => (e.approved_at ? startOfDay(new Date(e.approved_at)) : null) },
+    ].filter(Boolean);
+
     const rows = filteredEntries.map((entry) => {
-      const { total, brk, net, open } = entryHours(entry);
+      const h = entryHours(entry, autoBreak);
       const clockIn = new Date(entry.clock_in);
-      return [
-        entry.profiles?.full_name || 'Unknown',
-        startOfDay(clockIn),
-        entry.projects?.name || 'Unknown',
-        clockIn,
-        entry.clock_out ? new Date(entry.clock_out) : null,
-        open ? null : total,
-        open ? null : brk,
-        open ? null : net,
-        entry.mileage === null || entry.mileage === undefined || entry.mileage === '' ? null : Number(entry.mileage),
-        entry.notes || null,
-        entry.approved ? 'Approved' : open ? 'In progress' : 'Pending',
-        entry.approved_at ? startOfDay(new Date(entry.approved_at)) : null,
-      ];
+      return columns.map((c) => c.get(entry, h, clockIn));
     });
 
     downloadXlsx(`timesheets_${startDate || 'start'}_to_${endDate || 'today'}.xlsx`, [
       {
         name: 'Timesheets',
-        columns: [
-          { header: 'Employee', width: 22 },
-          { header: 'Date', width: 13, style: 'date' },
-          { header: 'Project', width: 28 },
-          { header: 'Clock in', width: 21, style: 'datetime' },
-          { header: 'Clock out', width: 21, style: 'datetime' },
-          { header: 'Total hours', width: 12, style: 'hours' },
-          { header: 'Break hours', width: 12, style: 'hours' },
-          { header: 'Net hours', width: 12, style: 'hours' },
-          { header: 'Mileage (km)', width: 13, style: 'distance' },
-          { header: 'Notes', width: 42, style: 'wrap' },
-          { header: 'Status', width: 13 },
-          { header: 'Approved on', width: 13, style: 'date' },
-        ],
+        columns: columns.map(({ header, width, style }) => ({ header, width, style })),
         rows,
-        totals: { label: 'Total', sum: [5, 6, 7, 8] },
+        totals: { label: 'Total', sum: columns.map((c, i) => (c.sum ? i : -1)).filter((i) => i >= 0) },
       },
       {
         name: 'By employee',
         columns: [
           { header: 'Employee', width: 26 },
           { header: 'Entries', width: 10, style: 'count' },
-          { header: 'Net hours', width: 12, style: 'hours' },
+          { header: hoursLabel, width: 12, style: 'hours' },
         ],
         rows: totals.byEmployee.map((r) => [r.name, r.entries, r.net]),
         totals: { label: 'Total', sum: [1, 2] },
@@ -227,19 +228,25 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
             </th>
             <th>Employee</th>
             <th>Date</th>
-            <th>Project</th>
+            {projectField && <th>Project</th>}
             <th>Time</th>
-            <th className="num">Total (h)</th>
-            <th className="num">Break (h)</th>
-            <th className="num">Net (h)</th>
-            <th className="num">Mileage</th>
+            {autoBreak ? (
+              <>
+                <th className="num">Total (h)</th>
+                <th className="num">Break (h)</th>
+                <th className="num">Net (h)</th>
+              </>
+            ) : (
+              <th className="num">Hours</th>
+            )}
+            {mileageField && <th className="num">Mileage</th>}
             <th>Notes</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {filteredEntries.map((entry) => {
-            const { total, brk, net, open } = entryHours(entry);
+            const { total, brk, net, open } = entryHours(entry, autoBreak);
             const offset = dayOffset(entry.clock_in, entry.clock_out);
             const approvable = isApprovable(entry);
             const isSelected = selectedIds.has(entry.id);
@@ -264,15 +271,21 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                 </td>
                 <td className="cell-strong nowrap">{entry.profiles?.full_name || 'Unknown'}</td>
                 <td className="nowrap">{formatDate(entry.clock_in)}</td>
-                <td className="nowrap">{entry.projects?.name || 'Unknown'}</td>
+                {projectField && <td className="nowrap">{entry.projects?.name || 'Unknown'}</td>}
                 <td className="nowrap">
                   {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
                   {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
                 </td>
-                <td className="num">{open ? '–' : hours(total)}</td>
-                <td className="num">{open ? '–' : hours(brk)}</td>
-                <td className="num cell-strong">{open ? '–' : hours(net)}</td>
-                <td className="num">{entry.mileage ? `${entry.mileage} km` : '–'}</td>
+                {autoBreak ? (
+                  <>
+                    <td className="num">{open ? '–' : hours(total)}</td>
+                    <td className="num">{open ? '–' : hours(brk)}</td>
+                    <td className="num cell-strong">{open ? '–' : hours(net)}</td>
+                  </>
+                ) : (
+                  <td className="num cell-strong">{open ? '–' : hours(net)}</td>
+                )}
+                {mileageField && <td className="num">{entry.mileage ? `${entry.mileage} km` : '–'}</td>}
                 <td className="cell-notes">
                   {entry.notes?.trim() ? <ExpandableText text={entry.notes} /> : '–'}
                 </td>
@@ -290,9 +303,9 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={7} className="num">Total net hours</td>
+            <td colSpan={4 + (projectField ? 1 : 0) + (autoBreak ? 2 : 0)} className="num">Total {hoursLabel.toLowerCase()}</td>
             <td className="num">{hours(totals.net)}</td>
-            <td colSpan={3}></td>
+            <td colSpan={2 + (mileageField ? 1 : 0)}></td>
           </tr>
         </tfoot>
       </table>
@@ -396,7 +409,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
 
       {isPhone ? (
         <div className="stat-strip" aria-label="Summary">
-          <div><strong>{hours(totals.net)}</strong><span>net hours</span></div>
+          <div><strong>{hours(totals.net)}</strong><span>{autoBreak ? 'net hours' : 'hours'}</span></div>
           <div><strong>{filteredEntries.length}</strong><span>entries</span></div>
           <div><strong>{pendingInView}</strong><span>to approve</span></div>
         </div>
@@ -404,7 +417,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
         <>
           <div className="stat-row">
             <div className="stat">
-              <div className="stat-label">Net hours</div>
+              <div className="stat-label">{hoursLabel}</div>
               <div className="stat-value">{hours(totals.net)}<span className="stat-unit">h</span></div>
             </div>
             <div className="stat">
@@ -418,7 +431,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
           </div>
 
           {totals.byEmployee.length > 1 && (
-            <div className="chip-row" aria-label="Net hours by employee">
+            <div className="chip-row" aria-label={`${hoursLabel} by employee`}>
               {totals.byEmployee.map((row) => (
                 <span key={row.name} className="chip">{row.name} <strong>{hours(row.net)} h</strong></span>
               ))}

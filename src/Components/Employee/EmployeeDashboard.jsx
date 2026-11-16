@@ -10,11 +10,13 @@ import ConfirmDialog from '../Common/ConfirmDialog';
 import { EntryStatusBadge } from '../Common/StatusBadge';
 import { useToast } from '../Common/Toast';
 import ExpandableText from '../Common/ExpandableText';
+import { useTenantSettings } from '../../tenant/settings';
 import TimeEntryForm from './TimeEntryForm';
 import { dayOffset, entryHours, formatDate, formatTime, hours, startOfWeek } from '../../utils/format';
 
 const EmployeeDashboard = ({ profile }) => {
   const toast = useToast();
+  const { projectField, mileageField, autoBreak } = useTenantSettings();
   const [timeEntries, setTimeEntries] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +27,7 @@ const EmployeeDashboard = ({ profile }) => {
 
   useEffect(() => {
     loadTimeEntries();
-    loadProjects();
+    if (projectField) loadProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -85,14 +87,14 @@ const EmployeeDashboard = ({ profile }) => {
     let pending = 0;
     let approvedThisWeek = 0;
     timeEntries.forEach((entry) => {
-      const { net, open } = entryHours(entry);
+      const { net, open } = entryHours(entry, autoBreak);
       const inWeek = new Date(entry.clock_in) >= weekStart;
       if (inWeek && !open) weekNet += net;
       if (!entry.approved && !open) pending += 1;
       if (entry.approved && inWeek) approvedThisWeek += 1;
     });
     return { weekNet, pending, approvedThisWeek };
-  }, [timeEntries]);
+  }, [timeEntries, autoBreak]);
 
   const openAdd = () => {
     setEditingEntry(null);
@@ -141,13 +143,19 @@ const EmployeeDashboard = ({ profile }) => {
             <table className="table table-hover table-scroll">
               <thead>
                 <tr>
-                  <th>Project</th>
+                  {projectField && <th>Project</th>}
                   <th>Date</th>
                   <th>Time</th>
-                  <th className="num">Total (h)</th>
-                  <th className="num">Break (h)</th>
-                  <th className="num">Net (h)</th>
-                  <th className="num">Mileage</th>
+                  {autoBreak ? (
+                    <>
+                      <th className="num">Total (h)</th>
+                      <th className="num">Break (h)</th>
+                      <th className="num">Net (h)</th>
+                    </>
+                  ) : (
+                    <th className="num">Hours</th>
+                  )}
+                  {mileageField && <th className="num">Mileage</th>}
                   <th>Notes</th>
                   <th>Status</th>
                   <th aria-label="Actions"></th>
@@ -155,21 +163,27 @@ const EmployeeDashboard = ({ profile }) => {
               </thead>
               <tbody>
                 {timeEntries.map((entry) => {
-                  const { total, brk, net, open } = entryHours(entry);
+                  const { total, brk, net, open } = entryHours(entry, autoBreak);
                   const offset = dayOffset(entry.clock_in, entry.clock_out);
 
                   return (
                     <tr key={entry.id}>
-                      <td className="cell-strong nowrap">{entry.projects?.name}</td>
+                      {projectField && <td className="cell-strong nowrap">{entry.projects?.name}</td>}
                       <td className="nowrap" data-label="Date">{formatDate(entry.clock_in)}</td>
                       <td className="nowrap" data-label="Time">
                         {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
                         {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}
                       </td>
-                      <td className="num" data-label="Total (h)">{open ? '–' : hours(total)}</td>
-                      <td className="num" data-label="Break (h)">{open ? '–' : hours(brk)}</td>
-                      <td className="num cell-strong" data-label="Net (h)">{open ? '–' : hours(net)}</td>
-                      <td className="num" data-label="Mileage">{entry.mileage ? `${entry.mileage} km` : '–'}</td>
+                      {autoBreak ? (
+                        <>
+                          <td className="num" data-label="Total (h)">{open ? '–' : hours(total)}</td>
+                          <td className="num" data-label="Break (h)">{open ? '–' : hours(brk)}</td>
+                          <td className="num cell-strong" data-label="Net (h)">{open ? '–' : hours(net)}</td>
+                        </>
+                      ) : (
+                        <td className="num cell-strong" data-label="Hours">{open ? '–' : hours(net)}</td>
+                      )}
+                      {mileageField && <td className="num" data-label="Mileage">{entry.mileage ? `${entry.mileage} km` : '–'}</td>}
                       <td className="cell-notes" data-label="Notes">
                         {entry.notes?.trim() ? <ExpandableText text={entry.notes} /> : '–'}
                       </td>
@@ -217,7 +231,7 @@ const EmployeeDashboard = ({ profile }) => {
           onCancel={() => setDeletingEntry(null)}
         >
           <p>
-            {deletingEntry.projects?.name} · {formatDate(deletingEntry.clock_in)}. This can&apos;t be undone.
+            {[deletingEntry.projects?.name, formatDate(deletingEntry.clock_in)].filter(Boolean).join(' · ')}. This can&apos;t be undone.
           </p>
         </ConfirmDialog>
       )}
