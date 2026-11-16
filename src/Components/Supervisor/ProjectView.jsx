@@ -4,6 +4,7 @@ import Card from '../Common/Card';
 import Button from '../Common/Button';
 import PageHeader from '../Common/PageHeader';
 import { ProjectStatusBadge, TypeChip } from '../Common/StatusBadge';
+import { useTenantSettings } from '../../tenant/settings';
 import { useToast } from '../Common/Toast';
 import ExpandableText from '../Common/ExpandableText';
 import { dayOffset, formatDate, formatTime, hours } from '../../utils/format';
@@ -22,6 +23,7 @@ const Detail = ({ label, children }) => (
 
 const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRole = 'supervisor' }) => {
   const toast = useToast();
+  const { projectLabels } = useTenantSettings();
   const [timeEntries, setTimeEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [invoiceCount, setInvoiceCount] = useState(project.invoice_count ?? 0);
@@ -123,7 +125,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
           <div className="col-md-6">
             <h4 className="section-title">Overview</h4>
             <dl className="detail-list">
-              <Detail label="Type"><TypeChip type={project.type} /></Detail>
+              <Detail label={projectLabels ? 'Project type' : 'Type'}><TypeChip type={project.type} /></Detail>
               <Detail label="Status"><ProjectStatusBadge status={project.status} /></Detail>
               <Detail label="Project lead">{projectLead?.full_name || '–'}</Detail>
               <Detail label="Invoices">
@@ -144,7 +146,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                 <h4 className="section-title">Contact</h4>
                 <dl className="detail-list">
                   {project.contact_person && <Detail label="Person">{project.contact_person}</Detail>}
-                  {project.company_name && <Detail label="Company">{project.company_name}</Detail>}
+                  {project.company_name && <Detail label={projectLabels ? 'Client' : 'Company'}>{project.company_name}</Detail>}
                   {project.email && <Detail label="Email"><a href={`mailto:${project.email}`}>{project.email}</a></Detail>}
                   {project.phone && <Detail label="Phone"><a href={`tel:${project.phone}`}>{project.phone}</a></Detail>}
                 </dl>
