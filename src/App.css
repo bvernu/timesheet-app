@@ -642,3 +642,6 @@ textarea.form-control { min-height: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Free-text project types can be long */
+.pill-outline { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

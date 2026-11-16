@@ -12,6 +12,7 @@ import { useToast } from '../Common/Toast';
 import ProjectForm from './ProjectForm';
 import ProjectView from './ProjectView';
 import { useTenant } from '../../tenant/TenantContext';
+import { useTenantSettings } from '../../tenant/settings';
 import { useMediaQuery } from '../../utils/useMediaQuery';
 
 const STATUS_OPTIONS = [
@@ -27,6 +28,7 @@ const STATUS_OPTIONS = [
 
 const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRole = 'supervisor' }) => {
   const tenant = useTenant();
+  const { projectLabels } = useTenantSettings();
   const isPhone = useMediaQuery('(max-width: 767.98px)');
   const toast = useToast();
   const [showAddProject, setShowAddProject] = useState(false);
@@ -85,6 +87,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
       project.serial_number?.toString().includes(q);
     return matchesStatus && matchesSearch;
   });
+  const typeSuggestions = [...new Set(projects.map((p) => (p.type || '').trim()).filter(Boolean))].sort();
   const archivedCount = projects.filter((p) => p.archived_at).length;
   const filtersActive = q !== '' || filterStatus !== 'all';
 
@@ -120,7 +123,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
             id="pj-search"
             type="search"
             className="form-control"
-            placeholder="Address, company, contact, number…"
+            placeholder={projectLabels ? 'Project, client, contact, number…' : 'Address, company, contact, number…'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -206,7 +209,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Project</th>
+                  <th>{projectLabels ? 'Project name' : 'Project'}</th>
                   <th>Type</th>
                   <th>Contact</th>
                   <th>Status</th>
@@ -270,6 +273,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
           project={editingProject}
           employees={employees}
           nextSerialNumber={showAddProject ? nextSerial : null}
+          typeSuggestions={typeSuggestions}
           onClose={() => {
             setShowAddProject(false);
             setEditingProject(null);

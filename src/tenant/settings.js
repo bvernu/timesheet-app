@@ -4,7 +4,10 @@ import { useTenant } from './TenantContext';
 //   entryFields.project = false  -> no Project field on time entries
 //   entryFields.mileage = false  -> no Mileage field
 //   autoBreak           = false  -> no automatic unpaid break (hours are shown as a single "Hours" figure)
-// Only an explicit `false` switches something off, so a missing or odd value can never hide a field by accident.
+//   projectLabels       = true   -> project wording: Address -> Project name, Company -> Client name, and Project type
+//                                   becomes free text instead of the fixed list
+// Only an explicit `false` switches a default-on feature off, and only an explicit `true` switches an extra one on,
+// so a missing or odd value can never change anything by accident.
 export function resolveSettings(tenant) {
   const s = tenant?.settings && typeof tenant.settings === 'object' ? tenant.settings : {};
   const fields = s.entryFields && typeof s.entryFields === 'object' ? s.entryFields : {};
@@ -12,6 +15,7 @@ export function resolveSettings(tenant) {
     projectField: fields.project !== false,
     mileageField: fields.mileage !== false,
     autoBreak: s.autoBreak !== false,
+    projectLabels: s.projectLabels === true,
   };
 }
 

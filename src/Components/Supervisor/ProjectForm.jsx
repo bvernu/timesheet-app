@@ -3,12 +3,14 @@ import { supabase } from '../../supabaseClient';
 import Modal from '../Common/Modal';
 import Button from '../Common/Button';
 import InputField from '../Common/InputField';
+import { useTenantSettings } from '../../tenant/settings';
 
-const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) => {
+const ProjectForm = ({ project, employees, nextSerialNumber, typeSuggestions = [], onClose, onSave }) => {
+  const { projectLabels } = useTenantSettings();
   const [formData, setFormData] = useState({
     serial_number: project?.serial_number || nextSerialNumber || '',
     address: project?.address || '',
-    type: project?.type || 'DGN',
+    type: project?.type || (projectLabels ? '' : 'DGN'),
     company_name: project?.company_name || '',
     contact_person: project?.contact_person || '',
     email: project?.email || '',
@@ -59,7 +61,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
 
     // Validate required fields
     if (!formData.address || !formData.type || !formData.contact_person) {
-      setError('Address, type, and contact person are required');
+      setError(projectLabels ? 'Project name, project type, and contact person are required' : 'Address, type, and contact person are required');
       setLoading(false);
       return;
     }
@@ -156,10 +158,11 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             />
 
             <div className="mb-3">
-              <label className="form-label">
-                Address (project title) <span className="text-danger">*</span>
+              <label className="form-label" htmlFor="project-name">
+                {projectLabels ? 'Project name' : 'Address (project title)'} <span className="text-danger">*</span>
               </label>
               <textarea
+                id="project-name"
                 className="form-control"
                 rows={2}
                 value={formData.address}
@@ -177,7 +180,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             />
 
             <InputField
-              label="Company name"
+              label={projectLabels ? 'Client name' : 'Company name'}
               id="company_name"
               value={formData.company_name}
               onChange={(val) => handleChange('company_name', val)}
@@ -205,11 +208,31 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
           <div className="col-md-6">
             <h6 className="form-section-title">Project details</h6>
 
+            {projectLabels ? (
+              <div className="mb-3">
+                <label className="form-label" htmlFor="project-type">
+                  Project type <span className="text-danger">*</span>
+                </label>
+                <input
+                  id="project-type"
+                  className="form-control"
+                  list="project-type-options"
+                  placeholder="e.g. Laundry room, Conference room"
+                  value={formData.type}
+                  onChange={(e) => handleChange('type', e.target.value)}
+                  required
+                />
+                <datalist id="project-type-options">
+                  {typeSuggestions.map((t) => <option key={t} value={t} />)}
+                </datalist>
+              </div>
+            ) : (
             <div className="mb-3">
-              <label className="form-label">
+              <label className="form-label" htmlFor="project-type-select">
                 Type <span className="text-danger">*</span>
               </label>
               <select
+                id="project-type-select"
                 className="form-select"
                 value={formData.type}
                 onChange={(e) => handleChange('type', e.target.value)}
@@ -223,6 +246,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
                 <option value="DEF">DEF - Design, Erection, and Fabrication</option>
               </select>
             </div>
+            )}
 
             <div className="mb-3">
               <label className="form-label">
