@@ -7,9 +7,13 @@ import { ProjectStatusBadge, TypeChip } from '../Common/StatusBadge';
 import { useToast } from '../Common/Toast';
 import ExpandableText from '../Common/ExpandableText';
 import { dayOffset, formatDate, formatTime, hours } from '../../utils/format';
-
-const money = (value) =>
-  `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { money } from '../../utils/money';
+import { useTenantSettings } from '../../tenant/settings';
+import { projectShare } from '../../utils/entryProjects';
+import { useProjectFinance } from '../Procurement/useProjectFinance';
+import { useSuppliers } from '../Procurement/useSuppliers';
+import ProjectSuppliers from '../Procurement/ProjectSuppliers';
+import ClientInvoices from '../Procurement/ClientInvoices';
 
 const hasValue = (v) => v !== null && v !== undefined && v !== '';
 
@@ -22,6 +26,9 @@ const Detail = ({ label, children }) => (
 
 const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRole = 'supervisor' }) => {
   const toast = useToast();
+  const { procurement, multiProject, projectHours } = useTenantSettings();
+  const finance = useProjectFinance(project.id, procurement);
+  const supplierList = useSuppliers();
   const [timeEntries, setTimeEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [invoiceCount, setInvoiceCount] = useState(project.invoice_count ?? 0);
@@ -32,21 +39,26 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, viewerRole]);
 
+  // Each entry carries `share`: the fraction of its hours that belongs to THIS project (1, or 1/n when the entry
+  // was logged against n projects - hours are split equally).
   const loadProjectTimeEntries = async () => {
     if (viewerRole === 'supervisor') {
       // Supervisors may read every time entry in their company, notes included
-      const { data } = await supabase
-        .from('time_entries')
-        .select(`
-          *,
-          profiles!time_entries_employee_id_fkey (full_name)
-        `)
-        .eq('project_id', project.id)
-        .order('clock_in', { ascending: false });
+      const select = `*, profiles!time_entries_employee_id_fkey (full_name)${multiProject ? `, time_entry_projects (project_id${projectHours ? ', minutes' : ''})` : ''}`;
+      const { data } = await supabase.from('time_entries').select(select).eq('project_id', project.id).order('clock_in', { ascending: false });
+      let rows = (data || []).map((e) => ({ ...e, share: 1, sharedWith: 0 }));
 
-      if (data) {
-        setTimeEntries(data);
+      if (multiProject) {
+        // Entries linked to this project through the several-projects list
+        const { data: links } = await supabase.from('time_entry_projects').select('time_entry_id').eq('project_id', project.id);
+        const ids = (links || []).map((l) => l.time_entry_id).filter((id) => !rows.some((r) => r.id === id));
+        if (ids.length > 0) {
+          const { data: linked } = await supabase.from('time_entries').select(select).in('id', ids);
+          rows = rows.concat((linked || []).map((e) => ({ ...e, share: projectShare(e.time_entry_projects, project.id), sharedWith: Math.max(0, (e.time_entry_projects?.length || 1) - 1) })));
+          rows.sort((a, b) => new Date(b.clock_in) - new Date(a.clock_in));
+        }
       }
+      setTimeEntries(rows);
     } else {
       // Managers can't read other people's time entries directly. This database function returns only who
       // worked on the project and when (no notes, mileage or approval details).
@@ -60,6 +72,8 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
             clock_in: row.clock_in,
             clock_out: row.clock_out,
             notes: null,
+            share: row.project_share ?? 1 / Math.max(1, row.project_count || 1),
+            sharedWith: Math.max(0, (row.project_count || 1) - 1),
             profiles: { full_name: row.employee_name },
           }))
         );
@@ -87,7 +101,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
 
   timeEntries.forEach((entry) => {
     if (entry.clock_out) {
-      const entryHours = (new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60);
+      const entryHours = ((new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60)) * (entry.share ?? 1);
       const employeeName = entry.profiles?.full_name || 'Unknown';
       const employeeId = entry.employee_id;
 
@@ -104,7 +118,9 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
   const projectLead = employees.find((e) => e.id === project.project_lead_id);
 
   const hasContact = project.contact_person || project.company_name || project.email || project.phone;
-  const hasFinancial = hasValue(project.quotation_amount) || hasValue(project.invoice_amount) || hasValue(project.payment_amount);
+  const hasFinancial = procurement
+    ? hasValue(project.quotation_amount)
+    : hasValue(project.quotation_amount) || hasValue(project.invoice_amount) || hasValue(project.payment_amount);
 
   return (
     <div>
@@ -113,7 +129,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
       </div>
 
       <PageHeader
-        title={project.address}
+        title={procurement ? (project.name || project.address) : project.address}
         subtitle={`Project #${project.serial_number}`}
         actions={<Button onClick={onEdit}>Edit project</Button>}
       />
@@ -123,9 +139,11 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
           <div className="col-md-6">
             <h4 className="section-title">Overview</h4>
             <dl className="detail-list">
-              <Detail label="Type"><TypeChip type={project.type} /></Detail>
+              {!procurement && <Detail label="Type"><TypeChip type={project.type} /></Detail>}
               <Detail label="Status"><ProjectStatusBadge status={project.status} /></Detail>
               <Detail label="Project lead">{projectLead?.full_name || '–'}</Detail>
+              {procurement && <Detail label="Project type">{project.type || '–'}</Detail>}
+              {!procurement && (
               <Detail label="Invoices">
                 <span className="d-inline-flex align-items-center gap-2">
                   <Button variant="secondary" size="sm" aria-label="Decrease invoice count" onClick={() => changeInvoiceCount(-1)} disabled={savingInvoice || invoiceCount <= 0}>−</Button>
@@ -133,6 +151,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                   <Button variant="secondary" size="sm" aria-label="Increase invoice count" onClick={() => changeInvoiceCount(1)} disabled={savingInvoice}>+</Button>
                 </span>
               </Detail>
+              )}
               {project.job_description && <Detail label="Description">{project.job_description}</Detail>}
               {project.notes && <Detail label="Notes">{project.notes}</Detail>}
             </dl>
@@ -144,7 +163,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                 <h4 className="section-title">Contact</h4>
                 <dl className="detail-list">
                   {project.contact_person && <Detail label="Person">{project.contact_person}</Detail>}
-                  {project.company_name && <Detail label="Company">{project.company_name}</Detail>}
+                  {project.company_name && <Detail label={procurement ? 'Client' : 'Company'}>{project.company_name}</Detail>}
                   {project.email && <Detail label="Email"><a href={`mailto:${project.email}`}>{project.email}</a></Detail>}
                   {project.phone && <Detail label="Phone"><a href={`tel:${project.phone}`}>{project.phone}</a></Detail>}
                 </dl>
@@ -160,13 +179,13 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                       {project.quotation_date && <span className="text-muted"> · {formatDate(project.quotation_date)}</span>}
                     </Detail>
                   )}
-                  {hasValue(project.invoice_amount) && (
+                  {!procurement && hasValue(project.invoice_amount) && (
                     <Detail label="Invoice">
                       {money(project.invoice_amount)}
                       {project.invoice_date && <span className="text-muted"> · {formatDate(project.invoice_date)}</span>}
                     </Detail>
                   )}
-                  {hasValue(project.payment_amount) && (
+                  {!procurement && hasValue(project.payment_amount) && (
                     <Detail label="Payment">
                       {money(project.payment_amount)}
                       {project.payment_date && <span className="text-muted"> · {formatDate(project.payment_date)}</span>}
@@ -181,6 +200,37 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
           </div>
         </div>
       </Card>
+
+      {procurement && (
+        <div className="stat-row mt-4" aria-label="Project financials">
+          <div className="stat">
+            <div className="stat-label">Client invoiced</div>
+            <div className="stat-value">{money(finance.totals.client)}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Supplier invoiced</div>
+            <div className="stat-value">{money(finance.totals.supplier)}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Profit</div>
+            <div className="stat-value" style={{ color: finance.totals.profit < 0 ? 'var(--tone-danger-fg)' : undefined }}>{money(finance.totals.profit)}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Outstanding balance</div>
+            <div className="stat-value">{money(finance.totals.outstanding)}</div>
+          </div>
+        </div>
+      )}
+      {procurement && finance.error && (
+        <div className="alert alert-danger mt-3" role="alert">Couldn&apos;t load supplier and invoice details: {finance.error}</div>
+      )}
+
+      {procurement && !finance.error && (
+        <div className="mt-4">
+          <ProjectSuppliers project={project} finance={finance} supplierList={supplierList} />
+          <div className="mt-4"><ClientInvoices projectId={project.id} finance={finance} /></div>
+        </div>
+      )}
 
       <div className="stat-row mt-4">
         <div className="stat">
@@ -228,7 +278,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                 <ul className="list-plain">
                   {timeEntries.map((entry) => {
                     const clockOut = entry.clock_out;
-                    const entryHrs = clockOut ? (new Date(clockOut) - new Date(entry.clock_in)) / 3600000 : null;
+                    const entryHrs = clockOut ? ((new Date(clockOut) - new Date(entry.clock_in)) / 3600000) * (entry.share ?? 1) : null;
                     const offset = dayOffset(entry.clock_in, clockOut);
                     return (
                       <li key={entry.id}>
@@ -243,6 +293,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                           </div>
                           <span className="fw-medium" style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                             {entryHrs === null ? 'Ongoing' : `${hours(entryHrs)} h`}
+                            {(entry.sharedWith ?? 0) > 0 && <span className="d-block small text-muted fw-normal">time shared with {entry.sharedWith} other {entry.sharedWith === 1 ? 'project' : 'projects'}</span>}
                           </span>
                         </div>
                       </li>

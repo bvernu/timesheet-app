@@ -12,6 +12,7 @@ import { useToast } from '../Common/Toast';
 import ProjectForm from './ProjectForm';
 import ProjectView from './ProjectView';
 import { useTenant } from '../../tenant/TenantContext';
+import { useTenantSettings } from '../../tenant/settings';
 import { useMediaQuery } from '../../utils/useMediaQuery';
 
 const STATUS_OPTIONS = [
@@ -27,6 +28,7 @@ const STATUS_OPTIONS = [
 
 const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRole = 'supervisor' }) => {
   const tenant = useTenant();
+  const { procurement } = useTenantSettings();
   const isPhone = useMediaQuery('(max-width: 767.98px)');
   const toast = useToast();
   const [showAddProject, setShowAddProject] = useState(false);
@@ -85,6 +87,8 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
       project.serial_number?.toString().includes(q);
     return matchesStatus && matchesSearch;
   });
+  // Types already used on this company's projects, offered as suggestions when typing a new one
+  const typeSuggestions = [...new Set(projects.map((p) => (p.type || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const archivedCount = projects.filter((p) => p.archived_at).length;
   const filtersActive = q !== '' || filterStatus !== 'all';
 
@@ -120,7 +124,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
             id="pj-search"
             type="search"
             className="form-control"
-            placeholder="Address, company, contact, number…"
+            placeholder={procurement ? 'Project, client, contact, number…' : 'Address, company, contact, number…'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -206,11 +210,11 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Project</th>
+                  <th>{procurement ? 'Project name' : 'Project'}</th>
                   <th>Type</th>
                   <th>Contact</th>
                   <th>Status</th>
-                  <th className="num">Invoices</th>
+                  {!procurement && <th className="num">Invoices</th>}
                   <th>Lead</th>
                   <th aria-label="Actions"></th>
                 </tr>
@@ -235,7 +239,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
                         </div>
                       </td>
                       <td data-label="Status"><ProjectStatusBadge status={project.status} /></td>
-                      <td className="num" data-label="Invoices">{project.invoice_count ?? 0}</td>
+                      {!procurement && <td className="num" data-label="Invoices">{project.invoice_count ?? 0}</td>}
                       <td data-label="Lead">{projectLead?.full_name || '–'}</td>
                       <td className="cell-actions" data-label="" onClick={(e) => e.stopPropagation()}>
                         <RowMenu
@@ -270,6 +274,7 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
           project={editingProject}
           employees={employees}
           nextSerialNumber={showAddProject ? nextSerial : null}
+          typeSuggestions={typeSuggestions}
           onClose={() => {
             setShowAddProject(false);
             setEditingProject(null);
@@ -302,7 +307,9 @@ const ProjectsTab = ({ projects, onRefresh, employees, loading = false, viewerRo
           )}
           {confirm.kind === 'restore' && <p>It will appear in the active project list again.</p>}
           {confirm.kind === 'delete' && (
-            <p>This permanently deletes the project <strong>and every time entry logged to it</strong>. This can&apos;t be undone. If you just want it out of the way, keep it archived instead.</p>
+            <p>
+              This permanently deletes the project{procurement ? <>, <strong>its suppliers&apos; order details, client invoices and payments</strong>, and its link to any time entries</> : <> <strong>and every time entry logged to it</strong></>}. This can&apos;t be undone. If you just want it out of the way, keep it archived instead.
+            </p>
           )}
         </ConfirmDialog>
       )}

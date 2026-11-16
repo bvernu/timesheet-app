@@ -5,8 +5,12 @@ import EmployeeDashboard from '../Employee/EmployeeDashboard';
 import TimesheetsTab from './TimesheetsTab';
 import EmployeesTab from './EmployeesTab';
 import ProjectsTab from './ProjectsTab';
+import SuppliersTab from './SuppliersTab';
+import { useTenantSettings } from '../../tenant/settings';
+import { PROJECT_EMBED_ONE, PROJECT_EMBED_MANY, PROJECT_EMBED_MANY_HOURS } from '../../utils/entryProjects';
 
 const SupervisorDashboard = ({ profile }) => {
+  const { multiProject, projectHours, procurement } = useTenantSettings();
   const [activeTab, setActiveTab] = useState('timesheets');
   const [employees, setEmployees] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -45,7 +49,7 @@ const SupervisorDashboard = ({ profile }) => {
       .select(`
         *,
         profiles!time_entries_employee_id_fkey (full_name),
-        projects!time_entries_project_id_fkey (name)
+        ${multiProject ? (projectHours ? PROJECT_EMBED_MANY_HOURS : PROJECT_EMBED_MANY) : PROJECT_EMBED_ONE}
       `)
       .order('clock_in', { ascending: false });
     
@@ -78,7 +82,10 @@ const SupervisorDashboard = ({ profile }) => {
       id: 'projects',
       label: 'Projects',
       content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} loading={loading} viewerRole={profile.role} />
-    }
+    },
+    ...(procurement
+      ? [{ id: 'suppliers', label: 'Suppliers', content: <SuppliersTab /> }]
+      : []),
   ];
 
   return <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />;

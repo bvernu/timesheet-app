@@ -3,8 +3,11 @@ import { supabase } from '../../supabaseClient';
 import Tabs from '../Common/Tabs';
 import EmployeeDashboard from '../Employee/EmployeeDashboard';
 import ProjectsTab from '../Supervisor/ProjectsTab';
+import SuppliersTab from '../Supervisor/SuppliersTab';
+import { useTenantSettings } from '../../tenant/settings';
 
 const ManagerDashboard = ({ profile }) => {
+  const { procurement } = useTenantSettings();
   const [activeTab, setActiveTab] = useState('my-timesheet');
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -46,7 +49,10 @@ const ManagerDashboard = ({ profile }) => {
       id: 'projects',
       label: 'Projects',
       content: <ProjectsTab projects={projects} employees={employees} onRefresh={loadProjects} loading={loading} viewerRole={profile.role} />
-    }
+    },
+    ...(procurement
+      ? [{ id: 'suppliers', label: 'Suppliers', content: <SuppliersTab /> }]
+      : []),
   ];
 
   return <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />;

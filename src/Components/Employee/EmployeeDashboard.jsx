@@ -12,11 +12,12 @@ import { useToast } from '../Common/Toast';
 import ExpandableText from '../Common/ExpandableText';
 import { useTenantSettings } from '../../tenant/settings';
 import TimeEntryForm from './TimeEntryForm';
+import { PROJECT_EMBED_ONE, PROJECT_EMBED_MANY, PROJECT_EMBED_MANY_HOURS, entryProjects, entryProjectLabel } from '../../utils/entryProjects';
 import { dayOffset, entryHours, formatDate, formatTime, hours, startOfWeek } from '../../utils/format';
 
 const EmployeeDashboard = ({ profile }) => {
   const toast = useToast();
-  const { projectField, mileageField, autoBreak } = useTenantSettings();
+  const { projectField, mileageField, autoBreak, multiProject, projectHours } = useTenantSettings();
   const [timeEntries, setTimeEntries] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +37,7 @@ const EmployeeDashboard = ({ profile }) => {
       .from('time_entries')
       .select(`
         *,
-        projects (name)
+        ${multiProject ? (projectHours ? PROJECT_EMBED_MANY_HOURS : PROJECT_EMBED_MANY) : PROJECT_EMBED_ONE}
       `)
       .eq('employee_id', profile.id)
       .order('clock_in', { ascending: false });
@@ -75,10 +76,10 @@ const EmployeeDashboard = ({ profile }) => {
 
   // Editing an old entry whose project has since been archived: keep that project selectable
   const projectOptions = useMemo(() => {
-    if (editingEntry && !projects.some((p) => p.id === editingEntry.project_id)) {
-      return [...projects, { id: editingEntry.project_id, name: editingEntry.projects?.name || 'Archived project' }];
-    }
-    return projects;
+    if (!editingEntry) return projects;
+    // Old entries may point at a project that has since been archived: keep it selectable
+    const missing = entryProjects(editingEntry).filter((ep) => !projects.some((p) => p.id === ep.id));
+    return missing.length ? [...projects, ...missing.map((m) => ({ id: m.id, name: `${m.name} (archived)` }))] : projects;
   }, [projects, editingEntry]);
 
   const summary = useMemo(() => {
@@ -168,7 +169,7 @@ const EmployeeDashboard = ({ profile }) => {
 
                   return (
                     <tr key={entry.id}>
-                      {projectField && <td className="cell-strong nowrap">{entry.projects?.name}</td>}
+                      {projectField && <td className="cell-strong">{entryProjectLabel(entry) || '–'}</td>}
                       <td className="nowrap" data-label="Date">{formatDate(entry.clock_in)}</td>
                       <td className="nowrap" data-label="Time">
                         {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
@@ -191,7 +192,7 @@ const EmployeeDashboard = ({ profile }) => {
                       <td className="cell-actions" data-label="">
                         {!entry.approved && (
                           <RowMenu
-                            label={`Actions for ${entry.projects?.name || 'entry'}`}
+                            label={`Actions for ${entryProjectLabel(entry) || 'entry'}`}
                             items={[
                               { label: 'Edit', onClick: () => setEditingEntry(entry) },
                               { label: 'Delete', danger: true, onClick: () => setDeletingEntry(entry) },
@@ -231,7 +232,7 @@ const EmployeeDashboard = ({ profile }) => {
           onCancel={() => setDeletingEntry(null)}
         >
           <p>
-            {[deletingEntry.projects?.name, formatDate(deletingEntry.clock_in)].filter(Boolean).join(' · ')}. This can&apos;t be undone.
+            {[entryProjectLabel(deletingEntry), formatDate(deletingEntry.clock_in)].filter(Boolean).join(' · ')}. This can&apos;t be undone.
           </p>
         </ConfirmDialog>
       )}

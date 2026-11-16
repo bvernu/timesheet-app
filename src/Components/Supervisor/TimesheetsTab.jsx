@@ -10,6 +10,7 @@ import { useToast } from '../Common/Toast';
 import { supabase } from '../../supabaseClient';
 import ExpandableText from '../Common/ExpandableText';
 import { useTenantSettings } from '../../tenant/settings';
+import { entryProjectLabel } from '../../utils/entryProjects';
 import { downloadXlsx } from '../../utils/xlsx';
 import { useMediaQuery } from '../../utils/useMediaQuery';
 import { dayOffset, entryHours, formatDate, formatTime, hours, isoDate, parseLocalDate } from '../../utils/format';
@@ -35,7 +36,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
   const [selectedEmployee, setSelectedEmployee] = useState('all');
   const [startDate, setStartDate] = useState(() => defaultRange().start);
   const [endDate, setEndDate] = useState(() => defaultRange().end);
-  const [status, setStatus] = useState('pending');
+  const [status, setStatus] = useState('all');
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [confirming, setConfirming] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -49,13 +50,13 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
 
   const isDefaultFilter = (() => {
     const d = defaultRange();
-    return selectedEmployee === 'all' && status === 'pending' && startDate === d.start && endDate === d.end;
+    return selectedEmployee === 'all' && status === 'all' && startDate === d.start && endDate === d.end;
   })();
 
   const resetFilters = () => {
     const d = defaultRange();
     setSelectedEmployee('all');
-    setStatus('pending');
+    setStatus('all');
     setStartDate(d.start);
     setEndDate(d.end);
   };
@@ -162,7 +163,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
     const columns = [
       { header: 'Employee', width: 22, get: (e) => e.profiles?.full_name || 'Unknown' },
       { header: 'Date', width: 13, style: 'date', get: (e, h, ci) => startOfDay(ci) },
-      projectField && { header: 'Project', width: 28, get: (e) => e.projects?.name || (e.project_id ? 'Unknown' : null) },
+      projectField && { header: 'Project', width: 28, get: (e) => entryProjectLabel(e) || null },
       { header: 'Clock in', width: 21, style: 'datetime', get: (e, h, ci) => ci },
       { header: 'Clock out', width: 21, style: 'datetime', get: (e) => (e.clock_out ? new Date(e.clock_out) : null) },
       ...(autoBreak
@@ -271,7 +272,7 @@ const TimesheetsTab = ({ timeEntries, employees, loading = false }) => {
                 </td>
                 <td className="cell-strong nowrap">{entry.profiles?.full_name || 'Unknown'}</td>
                 <td className="nowrap">{formatDate(entry.clock_in)}</td>
-                {projectField && <td className="nowrap">{entry.projects?.name || 'Unknown'}</td>}
+                {projectField && <td className="nowrap">{entryProjectLabel(entry) || '–'}</td>}
                 <td className="nowrap">
                   {formatTime(entry.clock_in)} → {open ? 'Ongoing' : formatTime(entry.clock_out)}
                   {offset > 0 && <span className="day-offset">+{offset} day{offset > 1 ? 's' : ''}</span>}

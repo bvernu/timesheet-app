@@ -3,12 +3,26 @@ import { supabase } from '../../supabaseClient';
 import Modal from '../Common/Modal';
 import Button from '../Common/Button';
 import InputField from '../Common/InputField';
+import { useToast } from '../Common/Toast';
+import { useTenant } from '../../tenant/TenantContext';
+import { useTenantSettings } from '../../tenant/settings';
+import { useSuppliers } from '../Procurement/useSuppliers';
+import SupplierPicker from '../Procurement/SupplierPicker';
+import SupplierOrderFields from '../Procurement/SupplierOrderFields';
+import { EMPTY_ORDER, orderToRow, validateOrder } from '../Procurement/constants';
+import { checkPdf, uploadInvoicePdf } from '../Procurement/invoicePdf';
 
-const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) => {
+const ProjectForm = ({ project, employees, nextSerialNumber, typeSuggestions = [], onClose, onSave }) => {
+  const toast = useToast();
+  const tenant = useTenant();
+  const { procurement } = useTenantSettings();
+  const supplierList = useSuppliers();
+  // Suppliers chosen while CREATING a project: [{ supplier, values, pdfFile }]. After creation they are managed on the project page.
+  const [chosen, setChosen] = useState([]);
   const [formData, setFormData] = useState({
     serial_number: project?.serial_number || nextSerialNumber || '',
     address: project?.address || '',
-    type: project?.type || 'DGN',
+    type: project?.type || (procurement ? '' : 'DGN'),
     company_name: project?.company_name || '',
     contact_person: project?.contact_person || '',
     email: project?.email || '',
@@ -59,9 +73,26 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
 
     // Validate required fields
     if (!formData.address || !formData.type || !formData.contact_person) {
-      setError('Address, type, and contact person are required');
+      setError(procurement ? 'Project name, project type, and contact person are required' : 'Address, type, and contact person are required');
       setLoading(false);
       return;
+    }
+
+    // A new project needs at least one supplier, each with its items and location
+    if (procurement && !project) {
+      if (chosen.length === 0) {
+        setError('Add at least one supplier to the project.');
+        setLoading(false);
+        return;
+      }
+      for (const c of chosen) {
+        const problem = validateOrder(c.values, c.supplier.name) || checkPdf(c.pdfFile);
+        if (problem) {
+          setError(problem);
+          setLoading(false);
+          return;
+        }
+      }
     }
 
     // Validate phone format (basic validation for North American format)
@@ -83,14 +114,17 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
         job_description: formData.job_description || null,
         status: formData.status,
         quotation_amount: formData.quotation_amount ? parseFloat(formData.quotation_amount) : null,
-        invoice_amount: formData.invoice_amount ? parseFloat(formData.invoice_amount) : null,
-        payment_amount: formData.payment_amount ? parseFloat(formData.payment_amount) : null,
         quotation_date: formData.quotation_date || null,
-        invoice_date: formData.invoice_date || null,
-        payment_date: formData.payment_date || null,
         project_lead_id: formData.project_lead_id || null,
         notes: formData.notes || null
       };
+      // Companies that track invoices and payments on the project page don't use these single fields: leave them untouched
+      if (!procurement) {
+        dataToSave.invoice_amount = formData.invoice_amount ? parseFloat(formData.invoice_amount) : null;
+        dataToSave.payment_amount = formData.payment_amount ? parseFloat(formData.payment_amount) : null;
+        dataToSave.invoice_date = formData.invoice_date || null;
+        dataToSave.payment_date = formData.payment_date || null;
+      }
 
       if (project) {
         // Update existing project - include serial_number if changed
@@ -111,11 +145,36 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
           dataToSave.serial_number = parseInt(formData.serial_number);
         }
         
-        const { error } = await supabase
+        const { data: created, error } = await supabase
           .from('projects')
-          .insert([dataToSave]);
-        
+          .insert([dataToSave])
+          .select('id')
+          .single();
+
         if (error) throw error;
+
+        if (procurement) {
+          // Link the suppliers. If that fails the new project is removed again, so a project never exists without them.
+          const rows = chosen.map((c) => ({ ...orderToRow(c.values), id: crypto.randomUUID(), project_id: created.id, supplier_id: c.supplier.id }));
+          const { error: linkError } = await supabase.from('project_suppliers').insert(rows);
+          if (linkError) {
+            await supabase.from('projects').delete().eq('id', created.id);
+            throw new Error(`The project was not created because its suppliers could not be saved: ${linkError.message}`);
+          }
+          // PDFs go up last (they need the project to exist). A failed upload doesn't undo the project: it can be re-attached.
+          const failed = [];
+          for (let i = 0; i < chosen.length; i += 1) {
+            if (!chosen[i].pdfFile) continue;
+            try {
+              const path = await uploadInvoicePdf({ tenantId: tenant.id, projectId: created.id, orderId: rows[i].id, file: chosen[i].pdfFile });
+              const { error: upErr } = await supabase.from('project_suppliers').update({ invoice_pdf_path: path }).eq('id', rows[i].id);
+              if (upErr) throw upErr;
+            } catch {
+              failed.push(chosen[i].supplier.name);
+            }
+          }
+          if (failed.length > 0) toast.error(`The project was saved, but the invoice PDF for ${failed.join(', ')} could not be uploaded. Open the project and edit the supplier to attach it again.`);
+        }
       }
 
       onSave();
@@ -156,10 +215,11 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             />
 
             <div className="mb-3">
-              <label className="form-label">
-                Address (project title) <span className="text-danger">*</span>
+              <label className="form-label" htmlFor="project-name">
+                {procurement ? 'Project name' : 'Address (project title)'} <span className="text-danger">*</span>
               </label>
               <textarea
+                id="project-name"
                 className="form-control"
                 rows={2}
                 value={formData.address}
@@ -177,7 +237,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
             />
 
             <InputField
-              label="Company name"
+              label={procurement ? 'Client name' : 'Company name'}
               id="company_name"
               value={formData.company_name}
               onChange={(val) => handleChange('company_name', val)}
@@ -205,11 +265,31 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
           <div className="col-md-6">
             <h6 className="form-section-title">Project details</h6>
 
+            {procurement ? (
+              <div className="mb-3">
+                <label className="form-label" htmlFor="project-type">
+                  Project type <span className="text-danger">*</span>
+                </label>
+                <input
+                  id="project-type"
+                  className="form-control"
+                  list="project-type-options"
+                  placeholder="e.g. Laundry room, Conference room"
+                  value={formData.type}
+                  onChange={(e) => handleChange('type', e.target.value)}
+                  required
+                />
+                <datalist id="project-type-options">
+                  {typeSuggestions.map((t) => <option key={t} value={t} />)}
+                </datalist>
+              </div>
+            ) : (
             <div className="mb-3">
-              <label className="form-label">
+              <label className="form-label" htmlFor="project-type-select">
                 Type <span className="text-danger">*</span>
               </label>
               <select
+                id="project-type-select"
                 className="form-select"
                 value={formData.type}
                 onChange={(e) => handleChange('type', e.target.value)}
@@ -223,6 +303,7 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
                 <option value="DEF">DEF - Design, Erection, and Fabrication</option>
               </select>
             </div>
+            )}
 
             <div className="mb-3">
               <label className="form-label">
@@ -308,7 +389,15 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
               />
             </div>
           </div>
-
+          {procurement && (
+            <div className="col-md-8">
+              <p className="text-muted small mt-4 mb-0">
+                Client invoices and payments, supplier invoices and the profit are tracked on the project page once it is created.
+              </p>
+            </div>
+          )}
+          {!procurement && (
+          <>
           <div className="col-md-4">
             <h6 className="form-section-title">Invoice</h6>
             <InputField
@@ -348,7 +437,41 @@ const ProjectForm = ({ project, employees, nextSerialNumber, onClose, onSave }) 
               />
             </div>
           </div>
+          </>
+          )}
         </div>
+
+        {procurement && !project && (
+          <div className="mt-4">
+            <h6 className="form-section-title">Suppliers <span className="text-danger">*</span></h6>
+            <p className="text-muted small">Add every supplier used on this project (at least one). Items and location are required for each.</p>
+            <SupplierPicker
+              idPrefix="newproj"
+              suppliers={supplierList.suppliers}
+              excludeIds={chosen.map((c) => c.supplier.id)}
+              onCreate={supplierList.addSupplier}
+              onPick={(supplier) => setChosen((list) => [...list, { key: supplier.id, supplier, values: { ...EMPTY_ORDER }, pdfFile: null }])}
+              label="Add a supplier"
+              disabled={loading}
+            />
+            {chosen.map((c, idx) => (
+              <div key={c.key} className="supplier-block">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <strong>{c.supplier.name}</strong>
+                  <Button variant="quiet" size="sm" onClick={() => setChosen((list) => list.filter((x) => x.key !== c.key))} aria-label={`Remove ${c.supplier.name}`}>Remove</Button>
+                </div>
+                <SupplierOrderFields
+                  idPrefix={`np${idx}`}
+                  value={c.values}
+                  onChange={(field, val) => setChosen((list) => list.map((x) => (x.key === c.key ? { ...x, values: { ...x.values, [field]: val } } : x)))}
+                  pdfFile={c.pdfFile}
+                  onPdf={(file) => setChosen((list) => list.map((x) => (x.key === c.key ? { ...x, pdfFile: file } : x)))}
+                  pdfError={checkPdf(c.pdfFile)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {error && (
           <div className="alert alert-danger" role="alert">

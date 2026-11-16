@@ -10,6 +10,9 @@ import { ToastProvider } from '../Common/Toast';
 
 const state = vi.hoisted(() => ({ entries: [], projects: [], deleted: [] }));
 
+// The screen reads this company's settings (which fields to show), so the tests supply a default company.
+vi.mock('../../tenant/TenantContext', () => ({ useTenant: () => ({ id: 'T1', name: 'Test Co', settings: {} }) }));
+
 vi.mock('../../supabaseClient', () => {
   // Minimal stand-in for the query builder: every method returns the builder, and awaiting it yields the rows.
   const builder = (table) => {
