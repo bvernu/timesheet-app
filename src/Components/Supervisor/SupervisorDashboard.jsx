@@ -5,8 +5,11 @@ import EmployeeDashboard from '../Employee/EmployeeDashboard';
 import TimesheetsTab from './TimesheetsTab';
 import EmployeesTab from './EmployeesTab';
 import ProjectsTab from './ProjectsTab';
+import { useTenantSettings } from '../../tenant/settings';
+import { PROJECT_EMBED_ONE, PROJECT_EMBED_MANY, PROJECT_EMBED_MANY_HOURS } from '../../utils/entryProjects';
 
 const SupervisorDashboard = ({ profile }) => {
+  const { multiProject, projectHours } = useTenantSettings();
   const [activeTab, setActiveTab] = useState('timesheets');
   const [employees, setEmployees] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -45,7 +48,7 @@ const SupervisorDashboard = ({ profile }) => {
       .select(`
         *,
         profiles!time_entries_employee_id_fkey (full_name),
-        projects!time_entries_project_id_fkey (name)
+        ${multiProject ? (projectHours ? PROJECT_EMBED_MANY_HOURS : PROJECT_EMBED_MANY) : PROJECT_EMBED_ONE}
       `)
       .order('clock_in', { ascending: false });
     

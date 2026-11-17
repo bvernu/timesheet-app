@@ -4,13 +4,13 @@ import Card from '../Common/Card';
 import Button from '../Common/Button';
 import PageHeader from '../Common/PageHeader';
 import { ProjectStatusBadge, TypeChip } from '../Common/StatusBadge';
-import { useTenantSettings } from '../../tenant/settings';
 import { useToast } from '../Common/Toast';
 import ExpandableText from '../Common/ExpandableText';
 import { dayOffset, formatDate, formatTime, hours } from '../../utils/format';
-
 const money = (value) =>
   `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { useTenantSettings } from '../../tenant/settings';
+import { projectShare } from '../../utils/entryProjects';
 
 const hasValue = (v) => v !== null && v !== undefined && v !== '';
 
@@ -23,7 +23,7 @@ const Detail = ({ label, children }) => (
 
 const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRole = 'supervisor' }) => {
   const toast = useToast();
-  const { projectLabels } = useTenantSettings();
+  const { projectLabels, multiProject, projectHours } = useTenantSettings();
   const [timeEntries, setTimeEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [invoiceCount, setInvoiceCount] = useState(project.invoice_count ?? 0);
@@ -34,21 +34,26 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, viewerRole]);
 
+  // Each entry carries `share`: the fraction of its hours that belongs to THIS project (1, or 1/n when the entry
+  // was logged against n projects - hours are split equally).
   const loadProjectTimeEntries = async () => {
     if (viewerRole === 'supervisor') {
       // Supervisors may read every time entry in their company, notes included
-      const { data } = await supabase
-        .from('time_entries')
-        .select(`
-          *,
-          profiles!time_entries_employee_id_fkey (full_name)
-        `)
-        .eq('project_id', project.id)
-        .order('clock_in', { ascending: false });
+      const select = `*, profiles!time_entries_employee_id_fkey (full_name)${multiProject ? `, time_entry_projects (project_id${projectHours ? ', minutes' : ''})` : ''}`;
+      const { data } = await supabase.from('time_entries').select(select).eq('project_id', project.id).order('clock_in', { ascending: false });
+      let rows = (data || []).map((e) => ({ ...e, share: 1, sharedWith: 0 }));
 
-      if (data) {
-        setTimeEntries(data);
+      if (multiProject) {
+        // Entries linked to this project through the several-projects list
+        const { data: links } = await supabase.from('time_entry_projects').select('time_entry_id').eq('project_id', project.id);
+        const ids = (links || []).map((l) => l.time_entry_id).filter((id) => !rows.some((r) => r.id === id));
+        if (ids.length > 0) {
+          const { data: linked } = await supabase.from('time_entries').select(select).in('id', ids);
+          rows = rows.concat((linked || []).map((e) => ({ ...e, share: projectShare(e.time_entry_projects, project.id), sharedWith: Math.max(0, (e.time_entry_projects?.length || 1) - 1) })));
+          rows.sort((a, b) => new Date(b.clock_in) - new Date(a.clock_in));
+        }
       }
+      setTimeEntries(rows);
     } else {
       // Managers can't read other people's time entries directly. This database function returns only who
       // worked on the project and when (no notes, mileage or approval details).
@@ -62,6 +67,8 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
             clock_in: row.clock_in,
             clock_out: row.clock_out,
             notes: null,
+            share: row.project_share ?? 1 / Math.max(1, row.project_count || 1),
+            sharedWith: Math.max(0, (row.project_count || 1) - 1),
             profiles: { full_name: row.employee_name },
           }))
         );
@@ -89,7 +96,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
 
   timeEntries.forEach((entry) => {
     if (entry.clock_out) {
-      const entryHours = (new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60);
+      const entryHours = ((new Date(entry.clock_out) - new Date(entry.clock_in)) / (1000 * 60 * 60)) * (entry.share ?? 1);
       const employeeName = entry.profiles?.full_name || 'Unknown';
       const employeeId = entry.employee_id;
 
@@ -230,7 +237,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                 <ul className="list-plain">
                   {timeEntries.map((entry) => {
                     const clockOut = entry.clock_out;
-                    const entryHrs = clockOut ? (new Date(clockOut) - new Date(entry.clock_in)) / 3600000 : null;
+                    const entryHrs = clockOut ? ((new Date(clockOut) - new Date(entry.clock_in)) / 3600000) * (entry.share ?? 1) : null;
                     const offset = dayOffset(entry.clock_in, clockOut);
                     return (
                       <li key={entry.id}>
@@ -245,6 +252,7 @@ const ProjectView = ({ project, onClose, onEdit, employees, onRefresh, viewerRol
                           </div>
                           <span className="fw-medium" style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                             {entryHrs === null ? 'Ongoing' : `${hours(entryHrs)} h`}
+                            {(entry.sharedWith ?? 0) > 0 && <span className="d-block small text-muted fw-normal">time shared with {entry.sharedWith} other {entry.sharedWith === 1 ? 'project' : 'projects'}</span>}
                           </span>
                         </div>
                       </li>
