@@ -4,6 +4,8 @@ import { useTenant } from './TenantContext';
 //   entryFields.project = false  -> no Project field on time entries
 //   entryFields.mileage = false  -> no Mileage field
 //   autoBreak           = false  -> no automatic unpaid break (hours are shown as a single "Hours" figure)
+//   entryFields.multiProject = true -> a time entry is linked to one OR MORE projects (hours split equally between them)
+//   entryFields.projectHours = true -> the employee says how long they spent on each project of an entry
 //   projectLabels       = true   -> project wording: Address -> Project name, Company -> Client name, and Project type
 //                                   becomes free text instead of the fixed list
 // Only an explicit `false` switches a default-on feature off, and only an explicit `true` switches an extra one on,
@@ -16,6 +18,9 @@ export function resolveSettings(tenant) {
     mileageField: fields.mileage !== false,
     autoBreak: s.autoBreak !== false,
     projectLabels: s.projectLabels === true,
+    multiProject: fields.multiProject === true,
+    // hours entered per project (only meaningful together with multiProject)
+    projectHours: fields.multiProject === true && fields.projectHours === true,
   };
 }
 
